@@ -1,9 +1,9 @@
 # golangci-lint configuration — IOrder Backend
-# Pragmatic, stable, low false-positive setup for Go 1.23 + Gin
+# Pragmatic, stable, low false-positive setup for Go 1.24 + Gin
 
 run:
   timeout: 5m
-  go: "1.23"
+  go: "1.24"
 
 linters:
   enable:
