@@ -11,6 +11,9 @@ on:
       - "mobile/**"
       - ".github/workflows/ci-mobile.yml"
 
+permissions:
+  contents: read
+
 defaults:
   run:
     working-directory: mobile

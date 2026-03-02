@@ -88,6 +88,25 @@ pnpm run lint
 pnpm test
 ```
 
+## CI Monitoring (Required for Every Agent Session)
+
+After pushing changes or opening a PR, **always** proactively check CI results:
+
+1. Use `list_workflow_runs` (GitHub MCP) to find the latest run for your branch.
+2. Use `get_job_logs` (GitHub MCP) to read detailed logs for any failed jobs.
+3. If CI fails, investigate the logs, fix the root cause, and push again.
+4. Repeat until all CI checks pass.
+
+```
+# Example flow after pushing:
+list_workflow_runs → find run ID for your branch
+get_workflow_run (run ID) → check overall status
+get_job_logs (run ID, failed_only=true) → read failure details
+# fix the issue, push again, re-check
+```
+
+Never consider a task complete while CI is red.
+
 ## Key Documentation
 
 | Doc | Purpose |
