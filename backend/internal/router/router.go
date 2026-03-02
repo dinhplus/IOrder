@@ -39,15 +39,18 @@ func New(cfg *config.Config, db *sql.DB) *gin.Engine {
 	menuRepo := repository.NewMenuRepository(db)
 	tableRepo := repository.NewTableRepository(db)
 	orderRepo := repository.NewOrderRepository(db)
+	staffRepo := repository.NewStaffRepository(db)
 
 	tenantH := handler.NewTenantHandler(tenantRepo)
 	menuH := handler.NewMenuHandler(menuRepo)
 	tableH := handler.NewTableHandler(tableRepo)
 	orderH := handler.NewOrderHandler(orderRepo)
+	staffH := handler.NewStaffHandler(staffRepo)
 
 	v1 := r.Group("/api/v1")
 	{
 		// Tenant routes
+		v1.GET("/tenants", tenantH.ListTenants())
 		v1.POST("/tenants", tenantH.CreateTenant())
 		v1.GET("/tenants/:id", tenantH.GetTenant())
 		v1.PATCH("/tenants/:id", tenantH.UpdateTenant())
@@ -84,7 +87,16 @@ func New(cfg *config.Config, db *sql.DB) *gin.Engine {
 		v1.POST("/orders/:id/ready", orderH.MarkReady())
 		v1.POST("/orders/:id/serve", orderH.MarkServed())
 		v1.POST("/orders/:id/request-payment", orderH.RequestPayment())
+		v1.POST("/orders/:id/pay", orderH.PayOrder())
+		v1.POST("/orders/:id/close", orderH.CloseOrder())
 		v1.POST("/orders/:id/cancel", orderH.CancelOrder())
+
+		// Staff routes
+		v1.GET("/staff", staffH.ListStaff())
+		v1.POST("/staff", staffH.CreateStaff())
+		v1.GET("/staff/:id", staffH.GetStaff())
+		v1.PATCH("/staff/:id", staffH.UpdateStaff())
+		v1.DELETE("/staff/:id", staffH.DeleteStaff())
 	}
 
 	return r

@@ -17,6 +17,7 @@ const (
 	OrderStatusServed           = "SERVED"
 	OrderStatusPaymentRequested = "PAYMENT_REQUESTED"
 	OrderStatusPaid             = "PAID"
+	OrderStatusClosed           = "CLOSED"
 	OrderStatusCancelled        = "CANCELLED"
 	OrderStatusRejected         = "REJECTED"
 )

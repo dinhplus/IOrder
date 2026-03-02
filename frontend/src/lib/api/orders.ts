@@ -39,6 +39,14 @@ export function requestPayment(id: string): Promise<Order> {
   return apiClient.post<Order>(`/api/v1/orders/${id}/request-payment`, {});
 }
 
+export function payOrder(id: string): Promise<Order> {
+  return apiClient.post<Order>(`/api/v1/orders/${id}/pay`, {});
+}
+
+export function closeOrder(id: string): Promise<Order> {
+  return apiClient.post<Order>(`/api/v1/orders/${id}/close`, {});
+}
+
 export function cancelOrder(id: string): Promise<Order> {
   return apiClient.post<Order>(`/api/v1/orders/${id}/cancel`, {});
 }

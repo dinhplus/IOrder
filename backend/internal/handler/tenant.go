@@ -114,6 +114,21 @@ type updateTenantRequest struct {
 	Settings json.RawMessage `json:"settings"`
 }
 
+// ListTenants handles GET /api/v1/tenants.
+func (h *TenantHandler) ListTenants() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		tenants, err := h.repo.List(c.Request.Context())
+		if err != nil {
+			RespondError(c, http.StatusInternalServerError, ErrInternal, "failed to list tenants")
+			return
+		}
+		if tenants == nil {
+			tenants = []*repository.Tenant{}
+		}
+		RespondSuccess(c, http.StatusOK, tenants)
+	}
+}
+
 // UpdateTenant handles PATCH /api/v1/tenants/:id.
 func (h *TenantHandler) UpdateTenant() gin.HandlerFunc {
 	return func(c *gin.Context) {

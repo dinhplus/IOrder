@@ -170,3 +170,48 @@ func TestCancelOrder_Success(t *testing.T) {
 		t.Fatalf("expected 200, got %d", w.Code)
 	}
 }
+
+func TestPayOrder_Success(t *testing.T) {
+	store := &mockOrderStore{order: &repository.Order{ID: "o1", TenantID: "t1", Status: repository.OrderStatusPaymentRequested}}
+	r := gin.New()
+	h := handler.NewOrderHandler(store)
+	r.POST("/orders/:id/pay", h.PayOrder())
+
+	req := httptest.NewRequest(http.MethodPost, "/orders/o1/pay", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestPayOrder_InvalidStatus(t *testing.T) {
+	store := &mockOrderStore{order: &repository.Order{ID: "o1", TenantID: "t1", Status: repository.OrderStatusDraft}}
+	r := gin.New()
+	h := handler.NewOrderHandler(store)
+	r.POST("/orders/:id/pay", h.PayOrder())
+
+	req := httptest.NewRequest(http.MethodPost, "/orders/o1/pay", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", w.Code)
+	}
+}
+
+func TestCloseOrder_Success(t *testing.T) {
+	store := &mockOrderStore{order: &repository.Order{ID: "o1", TenantID: "t1", Status: repository.OrderStatusPaid}}
+	r := gin.New()
+	h := handler.NewOrderHandler(store)
+	r.POST("/orders/:id/close", h.CloseOrder())
+
+	req := httptest.NewRequest(http.MethodPost, "/orders/o1/close", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+}

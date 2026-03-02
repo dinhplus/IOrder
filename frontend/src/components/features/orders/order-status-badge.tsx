@@ -15,6 +15,7 @@ function statusVariant(status: OrderStatus): "default" | "success" | "warning" |
     case "SERVED": return "success";
     case "PAYMENT_REQUESTED": return "warning";
     case "PAID": return "success";
+    case "CLOSED": return "outline";
     case "CANCELLED": return "danger";
     case "REJECTED": return "danger";
     default: return "outline";
@@ -31,6 +32,7 @@ function statusLabel(status: OrderStatus): string {
     case "SERVED": return "Served";
     case "PAYMENT_REQUESTED": return "Payment Requested";
     case "PAID": return "Paid";
+    case "CLOSED": return "Closed";
     case "CANCELLED": return "Cancelled";
     case "REJECTED": return "Rejected";
     default: return status;
