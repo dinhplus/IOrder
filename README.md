@@ -77,9 +77,27 @@ This project uses an **Agentic Scrum** process with AI agents.
 | QA / CI | [docs/process/agents/qa-ci.md](docs/process/agents/qa-ci.md) |
 | DevOps / Release | [docs/process/agents/release-devops.md](docs/process/agents/release-devops.md) |
 
-## Architecture Decisions
+## Business Requirements
 
-See [docs/architecture/adr/](docs/architecture/adr/) for all ADRs.
+See [docs/business/requirements.md](docs/business/requirements.md) for full PO business analysis including user stories, acceptance criteria, and non-functional requirements.
+
+## Architecture
+
+See [docs/architecture/system-architecture.md](docs/architecture/system-architecture.md) for the full system architecture (AWS infrastructure, service design, database schema, API design).
+
+### Architecture Decisions
+
+| ADR | Title |
+|---|---|
+| [ADR 0001](docs/architecture/adr/0001-record-architecture-decisions.md) | Record Architecture Decisions |
+| [ADR 0002](docs/architecture/adr/0002-aws-infrastructure.md) | AWS Infrastructure Architecture |
+| [ADR 0003](docs/architecture/adr/0003-order-state-machine.md) | Order State Machine Design |
+| [ADR 0004](docs/architecture/adr/0004-payment-integration.md) | Payment Integration Strategy |
+| [ADR 0005](docs/architecture/adr/0005-qr-table-ordering.md) | QR Code Table Ordering |
+
+## Deployment
+
+See [docs/architecture/deployment-guide.md](docs/architecture/deployment-guide.md) for instructions on local setup, AWS deployment, and operations.
 
 ## License
 
