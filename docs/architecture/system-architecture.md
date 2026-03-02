@@ -2,25 +2,25 @@
 
 > **Author:** Tech Lead
 > **Date:** 2026-03-02
-> **Version:** 1.0
+> **Version:** 2.0
 > **Status:** Accepted
 
 ---
 
 ## 1. Overview
 
-IOrder là hệ thống multi-tenant SaaS cho phép nhiều nhà hàng vận hành trên cùng nền tảng. Kiến trúc ưu tiên AWS-native services, hỗ trợ horizontal scaling, và đảm bảo availability ≥ 99.9%.
+IOrder is a multi-tenant SaaS platform that allows multiple restaurants to operate independently on a shared infrastructure. The architecture prioritizes AWS-native managed services, supports horizontal scaling, and guarantees availability ≥ 99.9%.
 
 ---
 
 ## 2. Architecture Principles
 
-1. **Cloud-native first** — Ưu tiên managed AWS services để giảm operational overhead
-2. **API-first** — Tất cả tính năng được expose qua REST API; FE/Mobile là client thuần
-3. **Event-driven for real-time** — Order state changes được push qua WebSocket/SSE
-4. **Multi-tenant isolation** — Dữ liệu nhà hàng được cô lập ở tầng application (row-level tenant ID)
+1. **Cloud-native first** — Prefer AWS managed services to minimize operational overhead
+2. **API-first** — All features are exposed via REST API; front-end and mobile are pure clients
+3. **Event-driven for real-time** — Order state changes are pushed via WebSocket/SSE
+4. **Multi-tenant isolation** — Restaurant data is isolated at the application layer (row-level tenant ID + PostgreSQL RLS)
 5. **Security by default** — TLS everywhere, least-privilege IAM, secrets in AWS Secrets Manager
-6. **Observability** — Logs, metrics, traces từ ngày đầu
+6. **Observability** — Logs, metrics, and traces from day one
 
 ---
 
@@ -79,12 +79,12 @@ IOrder là hệ thống multi-tenant SaaS cho phép nhiều nhà hàng vận hà
 
 | Service | Use Case |
 |---|---|
-| **VPC** | Network isolation với public/private subnets |
+| **VPC** | Network isolation with public/private subnets |
 | **ALB** (Application Load Balancer) | L7 load balancing, SSL termination, WebSocket support |
-| **CloudFront** | CDN cho static assets (menu images, frontend) |
+| **CloudFront** | CDN for static assets (menu images, frontend bundles) |
 | **Route 53** | DNS management, health checks, failover |
-| **WAF** | Web Application Firewall trước CloudFront và ALB |
-| **NAT Gateway** | Outbound internet cho private subnets |
+| **WAF** | Web Application Firewall in front of CloudFront and ALB |
+| **NAT Gateway** | Outbound internet access for private subnets |
 
 ### 4.3 Database & Storage
 
@@ -109,9 +109,9 @@ IOrder là hệ thống multi-tenant SaaS cho phép nhiều nhà hàng vận hà
 | Service | Use Case |
 |---|---|
 | **Cognito** | Customer auth (social login, phone OTP) |
-| **Cognito User Pools** | Staff/owner auth với MFA |
+| **Cognito User Pools** | Staff/owner auth with MFA |
 | **Secrets Manager** | Database credentials, API keys, payment secrets |
-| **KMS** | Encryption keys cho S3, RDS, Secrets Manager |
+| **KMS** | Encryption keys for S3, RDS, Secrets Manager |
 | **IAM** | Fine-grained access control |
 
 ### 4.6 Observability
@@ -120,7 +120,7 @@ IOrder là hệ thống multi-tenant SaaS cho phép nhiều nhà hàng vận hà
 |---|---|
 | **CloudWatch Logs** | Application logs, API access logs |
 | **CloudWatch Metrics** | Custom business metrics (orders/min, payment success rate) |
-| **CloudWatch Alarms** | Alerting trên error rate, latency, DB connections |
+| **CloudWatch Alarms** | Alerts on error rate, latency, DB connections |
 | **X-Ray** | Distributed tracing |
 | **OpenSearch** | Log analytics, full-text search (menu search) |
 
@@ -139,7 +139,7 @@ IOrder là hệ thống multi-tenant SaaS cho phép nhiều nhà hàng vận hà
 |---|---|
 | **SNS** | SMS gateway |
 | **SES** | Transactional emails (e-receipt, booking confirmation) |
-| **Pinpoint** | Push notifications, marketing campaigns cho membership |
+| **Pinpoint** | Push notifications and marketing campaigns for membership |
 
 ---
 
@@ -163,9 +163,12 @@ backend/
 │   │   ├── table.go     # /api/v1/restaurants/:id/tables
 │   │   ├── order.go     # /api/v1/orders
 │   │   ├── payment.go   # /api/v1/payments
-│   │   └── membership.go # /api/v1/membership
+│   │   ├── membership.go # /api/v1/membership
+│   │   ├── voucher.go   # /api/v1/vouchers
+│   │   └── inventory.go # /api/v1/inventory
 │   ├── middleware/
 │   │   ├── auth.go      # JWT validation (Cognito)
+│   │   ├── rbac.go      # Role-based access control (waiter/chef/cashier/etc.)
 │   │   ├── tenant.go    # Tenant resolution from subdomain/header
 │   │   ├── logger.go    # slog request logger
 │   │   ├── ratelimit.go # Redis-based rate limiting
@@ -173,14 +176,28 @@ backend/
 │   ├── domain/          # Domain models & business logic
 │   │   ├── order/       # Order state machine
 │   │   ├── payment/     # Payment processing
-│   │   └── membership/  # Points & tiers
+│   │   ├── membership/  # Points, tiers, vouchers, campaigns
+│   │   └── inventory/   # Stock management
 │   ├── repository/      # Database access layer
 │   ├── event/           # EventBridge publisher
 │   └── router/          # Gin route registration
 └── migrations/          # SQL migrations
 ```
 
-### 5.2 Frontend (Next.js 15)
+### 5.2 Staff Role → UI Mapping
+
+| Staff Role | Primary Interface | Key Screens |
+|---|---|---|
+| Owner / Manager | Dashboard (web) | Analytics, Menu management, Floor plan, Staff accounts |
+| Waiter | POS app (tablet/mobile) | Floor map, Order creation, Table status |
+| Server | Mobile app | READY orders list, Floor map navigation |
+| Chef | KDS screen (tablet) | Food orders queue, Item status updates |
+| Bartender | BDS screen (tablet) | Beverage orders queue |
+| Cashier | POS app (tablet) | Payment processing, Receipt management, Shift summary |
+| Warehouse Manager | Dashboard (web) | Inventory levels, Stock receipts, Purchase orders |
+| Accountant | Dashboard (web) | Financial reports, Export tools |
+
+### 5.3 Frontend (Next.js 15)
 
 ```
 frontend/src/
@@ -188,29 +205,38 @@ frontend/src/
 │   ├── (customer)/          # Customer-facing PWA
 │   │   ├── [restaurant]/    # Restaurant landing
 │   │   │   └── table/[id]/  # Table ordering flow
-│   │   └── membership/      # Member profile
-│   ├── (dashboard)/         # Restaurant owner/staff dashboard
-│   │   ├── layout.tsx       # Auth guard
+│   │   └── membership/      # Member profile & vouchers
+│   ├── (staff)/             # Role-specific staff interfaces
+│   │   ├── layout.tsx       # Auth guard + role check
+│   │   ├── pos/             # Waiter POS: floor map, order creation
+│   │   ├── kds/             # Kitchen Display System
+│   │   ├── bds/             # Bar Display System
+│   │   ├── cashier/         # Payment processing, receipts
+│   │   └── server/          # Server: READY orders, delivery confirmation
+│   ├── (dashboard)/         # Owner/Manager dashboard
 │   │   ├── menu/            # Menu management
 │   │   ├── tables/          # Floor plan editor
 │   │   ├── orders/          # Live order management
-│   │   ├── kds/             # Kitchen Display System
 │   │   ├── payments/        # Payment history
-│   │   └── analytics/       # Reports & charts
+│   │   ├── analytics/       # Reports & charts
+│   │   ├── membership/      # Membership, vouchers, campaigns
+│   │   └── inventory/       # Warehouse management
 │   └── (admin)/             # Platform admin
 ├── components/
 │   ├── ui/                  # Base UI (shadcn/ui)
 │   ├── floor-map/           # Interactive floor plan editor
 │   ├── order-tracker/       # Real-time order status
-│   └── payment/             # Payment method selector
+│   ├── kds/                 # KDS card components
+│   ├── payment/             # Payment method selector
+│   └── membership/          # Voucher and points components
 ├── lib/
 │   ├── api/client.ts        # Typed API client
 │   ├── ws/client.ts         # WebSocket client (order updates)
-│   └── auth/                # Cognito auth helpers
+│   └── auth/                # Cognito auth helpers + RBAC
 └── types/                   # Shared TypeScript types
 ```
 
-### 5.3 Mobile (React Native / Expo)
+### 5.4 Mobile (React Native / Expo)
 
 ```
 mobile/src/
@@ -220,7 +246,7 @@ mobile/src/
 │   ├── menu/                # Menu browsing
 │   ├── order/               # Order flow
 │   ├── payment/             # Payment flow
-│   └── profile/             # Membership profile
+│   └── profile/             # Membership profile & vouchers
 ├── components/              # Reusable components
 ├── lib/
 │   ├── api/client.ts        # API client (matches frontend pattern)
@@ -234,9 +260,9 @@ mobile/src/
 
 ### 6.1 Multi-tenancy Strategy
 
-**Strategy: Shared Database, Shared Schema với `tenant_id` column**
+**Strategy: Shared Database, Shared Schema with `tenant_id` column**
 
-Tất cả bảng có `tenant_id UUID NOT NULL` và Row-Level Security (RLS) trên PostgreSQL.
+All tables have `tenant_id UUID NOT NULL` and use PostgreSQL Row-Level Security (RLS).
 
 ```sql
 -- Enable RLS on orders table
@@ -245,11 +271,11 @@ CREATE POLICY tenant_isolation ON orders
   USING (tenant_id = current_setting('app.current_tenant')::UUID);
 ```
 
-Lý do chọn shared schema thay vì separate schema per tenant:
-- Đơn giản hơn trong việc migration schema
-- Chi phí thấp hơn khi số tenant tăng
-- Dễ dàng chạy cross-tenant analytics (platform level)
-- Aurora Serverless auto-scale xử lý tốt mixed workloads
+Reasons for choosing shared schema over separate schema per tenant:
+- Simpler schema migrations (run once, applied to all tenants)
+- Lower cost as tenant count grows
+- Easy cross-tenant analytics at platform level
+- Aurora Serverless handles mixed workloads well
 
 ### 6.2 Core Tables
 
@@ -268,11 +294,23 @@ CREATE TABLE tenants (
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Staff accounts
+CREATE TABLE staff (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id   UUID NOT NULL REFERENCES tenants(id),
+    cognito_sub TEXT,
+    full_name   VARCHAR(255) NOT NULL,
+    email       VARCHAR(255),
+    role        VARCHAR(30) NOT NULL,  -- owner, manager, waiter, server, kitchen, bartender, cashier, warehouse, accountant
+    is_active   BOOLEAN NOT NULL DEFAULT true,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- Floor plans
 CREATE TABLE floor_plans (
     id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id   UUID NOT NULL REFERENCES tenants(id),
-    name        VARCHAR(100) NOT NULL,  -- "Tầng 1", "Sân thượng"
+    name        VARCHAR(100) NOT NULL,  -- "Floor 1", "Rooftop"
     floor_level INT NOT NULL DEFAULT 1,
     is_active   BOOLEAN NOT NULL DEFAULT true,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -280,18 +318,18 @@ CREATE TABLE floor_plans (
 
 -- Tables
 CREATE TABLE restaurant_tables (
-    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id   UUID NOT NULL REFERENCES tenants(id),
+    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id     UUID NOT NULL REFERENCES tenants(id),
     floor_plan_id UUID NOT NULL REFERENCES floor_plans(id),
-    name        VARCHAR(50) NOT NULL,  -- "A1", "VIP 01"
-    capacity    INT NOT NULL DEFAULT 4,
-    pos_x       FLOAT NOT NULL DEFAULT 0,  -- position on floor map
-    pos_y       FLOAT NOT NULL DEFAULT 0,
-    shape       VARCHAR(20) NOT NULL DEFAULT 'rectangle',  -- circle, rectangle
-    status      VARCHAR(20) NOT NULL DEFAULT 'available',  -- available, occupied, reserved
-    qr_token    TEXT,          -- current active QR JWT
+    name          VARCHAR(50) NOT NULL,  -- "A1", "VIP-01"
+    capacity      INT NOT NULL DEFAULT 4,
+    pos_x         FLOAT NOT NULL DEFAULT 0,  -- position on floor map
+    pos_y         FLOAT NOT NULL DEFAULT 0,
+    shape         VARCHAR(20) NOT NULL DEFAULT 'rectangle',  -- circle, rectangle
+    status        VARCHAR(20) NOT NULL DEFAULT 'available',  -- available, occupied, reserved
+    qr_token      TEXT,           -- current active QR JWT
     qr_expires_at TIMESTAMPTZ,
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- Menu categories
@@ -299,6 +337,7 @@ CREATE TABLE menu_categories (
     id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id   UUID NOT NULL REFERENCES tenants(id),
     name        VARCHAR(100) NOT NULL,
+    type        VARCHAR(20) NOT NULL DEFAULT 'food' CHECK (type IN ('food', 'beverage')),  -- routes to KDS or BDS
     description TEXT,
     sort_order  INT NOT NULL DEFAULT 0,
     is_active   BOOLEAN NOT NULL DEFAULT true,
@@ -307,30 +346,30 @@ CREATE TABLE menu_categories (
 
 -- Menu items
 CREATE TABLE menu_items (
-    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id       UUID NOT NULL REFERENCES tenants(id),
-    category_id     UUID NOT NULL REFERENCES menu_categories(id),
-    name            VARCHAR(255) NOT NULL,
-    description     TEXT,
-    price           BIGINT NOT NULL,  -- stored in smallest unit (xu/cent)
-    image_url       TEXT,
-    tags            TEXT[] NOT NULL DEFAULT '{}',  -- vegetarian, vegan, ...
-    is_available    BOOLEAN NOT NULL DEFAULT true,
-    sort_order      INT NOT NULL DEFAULT 0,
-    serve_from      TIME,   -- null = always available
-    serve_until     TIME,
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id    UUID NOT NULL REFERENCES tenants(id),
+    category_id  UUID NOT NULL REFERENCES menu_categories(id),
+    name         VARCHAR(255) NOT NULL,
+    description  TEXT,
+    price        BIGINT NOT NULL,  -- stored in smallest unit (xu/cent)
+    image_url    TEXT,
+    tags         TEXT[] NOT NULL DEFAULT '{}',  -- vegetarian, vegan, gluten-free, ...
+    is_available BOOLEAN NOT NULL DEFAULT true,
+    sort_order   INT NOT NULL DEFAULT 0,
+    serve_from   TIME,   -- null = always available
+    serve_until  TIME,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- Item modifiers (e.g., size, spice level)
 CREATE TABLE item_modifiers (
-    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id   UUID NOT NULL REFERENCES tenants(id),
-    item_id     UUID NOT NULL REFERENCES menu_items(id),
-    name        VARCHAR(100) NOT NULL,  -- "Kích thước", "Mức độ cay"
-    required    BOOLEAN NOT NULL DEFAULT false,
-    options     JSONB NOT NULL  -- [{"name":"Nhỏ","price_delta":0},{"name":"Lớn","price_delta":5000}]
+    id        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL REFERENCES tenants(id),
+    item_id   UUID NOT NULL REFERENCES menu_items(id),
+    name      VARCHAR(100) NOT NULL,  -- "Size", "Spice Level"
+    required  BOOLEAN NOT NULL DEFAULT false,
+    options   JSONB NOT NULL  -- [{"name":"Small","price_delta":0},{"name":"Large","price_delta":5000}]
 );
 
 -- Orders
@@ -340,9 +379,10 @@ CREATE TABLE orders (
     table_id        UUID NOT NULL REFERENCES restaurant_tables(id),
     session_id      UUID NOT NULL,  -- groups multiple order rounds at same table
     status          VARCHAR(30) NOT NULL DEFAULT 'DRAFT',
-    customer_id     UUID REFERENCES customers(id),  -- null if not logged in
+    customer_id     UUID REFERENCES customers(id),  -- null if not a member
     subtotal        BIGINT NOT NULL DEFAULT 0,
     discount_amount BIGINT NOT NULL DEFAULT 0,
+    voucher_id      UUID REFERENCES vouchers(id),   -- applied voucher
     total           BIGINT NOT NULL DEFAULT 0,
     notes           TEXT,
     placed_at       TIMESTAMPTZ,
@@ -356,26 +396,27 @@ CREATE TABLE orders (
 
 -- Order items
 CREATE TABLE order_items (
-    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    order_id        UUID NOT NULL REFERENCES orders(id),
-    tenant_id       UUID NOT NULL REFERENCES tenants(id),
-    item_id         UUID NOT NULL REFERENCES menu_items(id),
-    item_name       VARCHAR(255) NOT NULL,  -- snapshot at order time
-    item_price      BIGINT NOT NULL,        -- snapshot at order time
-    quantity        INT NOT NULL DEFAULT 1,
-    modifiers       JSONB NOT NULL DEFAULT '[]',
-    notes           TEXT,
-    status          VARCHAR(20) NOT NULL DEFAULT 'pending'  -- pending, preparing, ready, served
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    order_id    UUID NOT NULL REFERENCES orders(id),
+    tenant_id   UUID NOT NULL REFERENCES tenants(id),
+    item_id     UUID NOT NULL REFERENCES menu_items(id),
+    item_name   VARCHAR(255) NOT NULL,  -- snapshot at order time
+    item_price  BIGINT NOT NULL,        -- snapshot at order time
+    quantity    INT NOT NULL DEFAULT 1,
+    modifiers   JSONB NOT NULL DEFAULT '[]',
+    notes       TEXT,
+    status      VARCHAR(20) NOT NULL DEFAULT 'pending',  -- pending, preparing, ready, served
+    routed_to   VARCHAR(20) NOT NULL DEFAULT 'kitchen' CHECK (routed_to IN ('kitchen', 'bar'))
 );
 
--- Order state transitions (audit log)
+-- Order state transitions (immutable audit log)
 CREATE TABLE order_events (
     id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     order_id    UUID NOT NULL REFERENCES orders(id),
     tenant_id   UUID NOT NULL REFERENCES tenants(id),
     from_status VARCHAR(30),
     to_status   VARCHAR(30) NOT NULL,
-    actor_id    UUID,        -- staff/customer who triggered transition
+    actor_id    UUID,        -- staff/customer who triggered the transition
     actor_type  VARCHAR(20), -- staff, customer, system
     metadata    JSONB NOT NULL DEFAULT '{}',
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -383,48 +424,134 @@ CREATE TABLE order_events (
 
 -- Payments
 CREATE TABLE payments (
-    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id       UUID NOT NULL REFERENCES tenants(id),
-    order_id        UUID NOT NULL REFERENCES orders(id),
-    method          VARCHAR(30) NOT NULL,  -- cash, vietqr, momo, zalopay, shopee_pay, adyen
-    status          VARCHAR(20) NOT NULL DEFAULT 'pending',  -- pending, processing, completed, failed, refunded
-    amount          BIGINT NOT NULL,
-    currency        CHAR(3) NOT NULL DEFAULT 'VND',
-    provider_ref    TEXT,   -- external payment reference
-    provider_data   JSONB NOT NULL DEFAULT '{}',
-    expires_at      TIMESTAMPTZ,
-    completed_at    TIMESTAMPTZ,
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id     UUID NOT NULL REFERENCES tenants(id),
+    order_id      UUID NOT NULL REFERENCES orders(id),
+    method        VARCHAR(30) NOT NULL,  -- cash, vietqr, momo, zalopay, shopee_pay, adyen
+    status        VARCHAR(20) NOT NULL DEFAULT 'pending',  -- pending, processing, completed, failed, refunded
+    amount        BIGINT NOT NULL,
+    currency      CHAR(3) NOT NULL DEFAULT 'VND',
+    provider_ref  TEXT,   -- external payment reference
+    provider_data JSONB NOT NULL DEFAULT '{}',
+    expires_at    TIMESTAMPTZ,
+    completed_at  TIMESTAMPTZ,
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- Customers (membership)
 CREATE TABLE customers (
-    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id       UUID NOT NULL REFERENCES tenants(id),
-    cognito_sub     TEXT,       -- Cognito user ID
-    phone           VARCHAR(20),
-    email           VARCHAR(255),
-    full_name       VARCHAR(255),
-    tier            VARCHAR(20) NOT NULL DEFAULT 'bronze',
-    total_spend     BIGINT NOT NULL DEFAULT 0,
-    points_balance  INT NOT NULL DEFAULT 0,
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id      UUID NOT NULL REFERENCES tenants(id),
+    cognito_sub    TEXT,
+    phone          VARCHAR(20),
+    email          VARCHAR(255),
+    full_name      VARCHAR(255),
+    date_of_birth  DATE,
+    tier           VARCHAR(20) NOT NULL DEFAULT 'bronze',
+    total_spend    BIGINT NOT NULL DEFAULT 0,
+    points_balance INT NOT NULL DEFAULT 0,
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE(tenant_id, phone),
     UNIQUE(tenant_id, email)
 );
 
--- Membership transactions (points)
+-- Membership point transactions
 CREATE TABLE membership_transactions (
-    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id       UUID NOT NULL REFERENCES tenants(id),
-    customer_id     UUID NOT NULL REFERENCES customers(id),
-    order_id        UUID REFERENCES orders(id),
-    type            VARCHAR(20) NOT NULL,  -- earn, redeem, expire, adjust
-    points          INT NOT NULL,          -- positive=earn, negative=redeem
-    balance_after   INT NOT NULL,
-    description     TEXT,
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id     UUID NOT NULL REFERENCES tenants(id),
+    customer_id   UUID NOT NULL REFERENCES customers(id),
+    order_id      UUID REFERENCES orders(id),
+    type          VARCHAR(20) NOT NULL,  -- earn, redeem, expire, adjust, campaign
+    points        INT NOT NULL,          -- positive = earn, negative = redeem
+    balance_after INT NOT NULL,
+    description   TEXT,
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Vouchers
+CREATE TABLE vouchers (
+    id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id         UUID NOT NULL REFERENCES tenants(id),
+    code              VARCHAR(20) NOT NULL,
+    type              VARCHAR(30) NOT NULL,  -- percentage, fixed_amount, free_item, buy_x_get_y, category_discount
+    value             BIGINT NOT NULL,       -- percentage (e.g., 20 = 20%) or fixed amount in smallest unit
+    max_discount_cap  BIGINT,               -- maximum discount amount (for percentage vouchers)
+    min_order_amount  BIGINT,               -- minimum order subtotal to apply
+    applicable_items  UUID[],               -- null = all items; specific item IDs for free_item type
+    applicable_cats   UUID[],               -- null = all categories; specific category IDs
+    total_usage_limit INT,                  -- null = unlimited
+    per_member_limit  INT NOT NULL DEFAULT 1,
+    times_redeemed    INT NOT NULL DEFAULT 0,
+    valid_from        TIMESTAMPTZ NOT NULL,
+    valid_until       TIMESTAMPTZ NOT NULL,
+    is_active         BOOLEAN NOT NULL DEFAULT true,
+    created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(tenant_id, code)
+);
+
+-- Voucher redemptions
+CREATE TABLE voucher_redemptions (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id   UUID NOT NULL REFERENCES tenants(id),
+    voucher_id  UUID NOT NULL REFERENCES vouchers(id),
+    customer_id UUID REFERENCES customers(id),
+    order_id    UUID NOT NULL REFERENCES orders(id),
+    discount    BIGINT NOT NULL,  -- actual discount applied
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Marketing campaigns
+CREATE TABLE campaigns (
+    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id     UUID NOT NULL REFERENCES tenants(id),
+    name          VARCHAR(255) NOT NULL,
+    type          VARCHAR(30) NOT NULL,  -- happy_hour, birthday, referral, milestone, seasonal, reengagement
+    trigger       JSONB NOT NULL,        -- trigger conditions (e.g., days_inactive, spend_milestone)
+    reward        JSONB NOT NULL,        -- reward definition (voucher, points, free_item)
+    target_tiers  TEXT[],               -- null = all tiers; or ['silver','gold','platinum']
+    valid_from    TIMESTAMPTZ,
+    valid_until   TIMESTAMPTZ,
+    is_active     BOOLEAN NOT NULL DEFAULT true,
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Inventory: ingredient catalog
+CREATE TABLE ingredients (
+    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id    UUID NOT NULL REFERENCES tenants(id),
+    name         VARCHAR(255) NOT NULL,
+    unit         VARCHAR(20) NOT NULL,  -- kg, litre, piece, portion
+    stock_qty    DECIMAL(10,3) NOT NULL DEFAULT 0,
+    min_qty      DECIMAL(10,3) NOT NULL DEFAULT 0,   -- low-stock alert threshold
+    cost_per_unit BIGINT NOT NULL DEFAULT 0,          -- in smallest currency unit
+    is_active    BOOLEAN NOT NULL DEFAULT true,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Inventory: recipe (menu item → ingredient mapping)
+CREATE TABLE recipes (
+    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id     UUID NOT NULL REFERENCES tenants(id),
+    menu_item_id  UUID NOT NULL REFERENCES menu_items(id),
+    ingredient_id UUID NOT NULL REFERENCES ingredients(id),
+    quantity      DECIMAL(10,3) NOT NULL,  -- amount consumed per 1 portion
+    UNIQUE(menu_item_id, ingredient_id)
+);
+
+-- Inventory: stock movements
+CREATE TABLE stock_movements (
+    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id     UUID NOT NULL REFERENCES tenants(id),
+    ingredient_id UUID NOT NULL REFERENCES ingredients(id),
+    type          VARCHAR(20) NOT NULL,  -- receipt, consumption, adjustment, waste
+    quantity      DECIMAL(10,3) NOT NULL,  -- positive = in, negative = out
+    qty_after     DECIMAL(10,3) NOT NULL,
+    reference_id  UUID,         -- order_id for consumption, purchase_order_id for receipt
+    notes         TEXT,
+    created_by    UUID REFERENCES staff(id),
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 ```
 
@@ -440,11 +567,13 @@ https://api.iorder.vn/api/v1/
 
 ### 7.2 Authentication
 
-Tất cả API (trừ public customer endpoints) yêu cầu:
+All APIs (except public customer endpoints) require:
 ```
 Authorization: Bearer <cognito-jwt>
-X-Tenant-ID: <tenant-uuid>   (hoặc resolve từ subdomain)
+X-Tenant-ID: <tenant-uuid>   (or resolved from subdomain)
 ```
+
+Role-based access is enforced at the middleware level using the `role` claim in the JWT.
 
 ### 7.3 Key Endpoints
 
@@ -484,23 +613,23 @@ GET    /api/v1/tables/:id/qr/download         # Download QR as PNG/PDF
 
 #### Orders
 ```
-POST   /api/v1/orders                         # Customer: create order (draft)
+POST   /api/v1/orders                         # Customer/Waiter: create order (draft)
 GET    /api/v1/orders/:id                     # Get order details
 PATCH  /api/v1/orders/:id/items               # Update cart items
-POST   /api/v1/orders/:id/submit              # Customer: submit order
-POST   /api/v1/orders/:id/confirm             # Staff: confirm order
-POST   /api/v1/orders/:id/reject              # Staff: reject order
-POST   /api/v1/orders/:id/start-preparation   # Kitchen: mark IN_PREPARATION
-POST   /api/v1/orders/:id/ready               # Kitchen: mark READY
-POST   /api/v1/orders/:id/serve               # Staff: mark SERVED
-POST   /api/v1/orders/:id/request-payment     # Customer/Staff: request payment
+POST   /api/v1/orders/:id/submit              # Customer/Waiter: submit order
+POST   /api/v1/orders/:id/confirm             # Waiter: confirm order
+POST   /api/v1/orders/:id/reject              # Waiter/Manager: reject order
+POST   /api/v1/orders/:id/start-preparation   # Chef/Bartender: mark IN_PREPARATION
+POST   /api/v1/orders/:id/ready               # Chef/Bartender: mark READY
+POST   /api/v1/orders/:id/serve               # Server/Waiter: mark SERVED
+POST   /api/v1/orders/:id/request-payment     # Customer/Waiter: request payment
 POST   /api/v1/orders/:id/cancel              # Cancel order
 GET    /api/v1/orders                         # Staff: list orders (with filters)
 ```
 
 #### Payments
 ```
-POST   /api/v1/payments                       # Initiate payment
+POST   /api/v1/payments                       # Initiate payment (Cashier)
 GET    /api/v1/payments/:id                   # Get payment status
 POST   /api/v1/payments/webhooks/momo         # MoMo webhook (public, HMAC-verified)
 POST   /api/v1/payments/webhooks/zalopay      # ZaloPay webhook
@@ -515,10 +644,35 @@ GET    /api/v1/membership/transactions        # Points history
 POST   /api/v1/membership/redeem              # Redeem points for voucher
 ```
 
+#### Vouchers
+```
+GET    /api/v1/vouchers                       # Owner: list all vouchers
+POST   /api/v1/vouchers                       # Owner: create voucher
+PUT    /api/v1/vouchers/:id                   # Owner: update voucher
+DELETE /api/v1/vouchers/:id                   # Owner: deactivate voucher
+POST   /api/v1/vouchers/validate              # Cashier/Customer: validate voucher code
+POST   /api/v1/vouchers/apply                 # Apply voucher to order
+GET    /api/v1/vouchers/report                # Owner: redemption report
+```
+
+#### Inventory
+```
+GET    /api/v1/inventory/ingredients          # Warehouse: list ingredients + stock levels
+POST   /api/v1/inventory/ingredients          # Warehouse: add ingredient
+PUT    /api/v1/inventory/ingredients/:id      # Warehouse: update ingredient
+POST   /api/v1/inventory/receipts             # Warehouse: record stock receipt
+POST   /api/v1/inventory/adjustments          # Warehouse: manual stock adjustment
+GET    /api/v1/inventory/movements            # Warehouse/Accountant: stock movement log
+GET    /api/v1/inventory/low-stock            # Warehouse: low-stock alert list
+GET    /api/v1/inventory/consumption          # Owner/Accountant: consumption vs. sales report
+```
+
 #### WebSocket (Real-time)
 ```
 wss://api.iorder.vn/ws/orders/:session_id    # Customer: subscribe to order updates
-wss://api.iorder.vn/ws/kds                   # Staff: KDS live order feed
+wss://api.iorder.vn/ws/kds                   # Chef: KDS live food order feed
+wss://api.iorder.vn/ws/bds                   # Bartender: BDS live beverage order feed
+wss://api.iorder.vn/ws/floor                 # Waiter/Server: floor map live table status
 ```
 
 ### 7.4 Error Response Format
@@ -553,10 +707,10 @@ API Server ──── Publishes OrderStateChanged event ───────�
 
 ### 8.2 WebSocket Connection Management
 
-- API Gateway WebSocket API manage connections
+- API Gateway WebSocket API manages connections
 - Lambda handler stores `connectionId` → `{tenantId, orderId, role}` in DynamoDB
 - API server publishes events to Redis channel
-- Lambda subscriber pushes to relevant WebSocket connections
+- Lambda subscriber pushes events to relevant WebSocket connections based on role and order/table context
 
 ---
 
@@ -597,8 +751,8 @@ Worker consumes → Update order status to PAID → Notify customer
 
 ### 9.2 Idempotency
 
-- Tất cả payment webhook handlers phải idempotent
-- Kiểm tra `provider_ref` trước khi xử lý để tránh duplicate
+- All payment webhook handlers must be idempotent
+- Check `provider_ref` before processing to avoid duplicate handling
 
 ---
 
@@ -606,25 +760,26 @@ Worker consumes → Update order status to PAID → Notify customer
 
 ### 10.1 Network Security
 
-- ALB chỉ accept traffic từ CloudFront (IP restriction)
-- ECS tasks trong private subnet, không có public IP
+- ALB only accepts traffic from CloudFront (IP restriction)
+- ECS tasks are in private subnets with no public IP
 - Security Groups: ALB → ECS (443/8080), ECS → RDS (5432), ECS → Redis (6379)
-- WAF rules: SQL injection, XSS, rate limiting, geo-blocking
+- WAF rules: SQL injection protection, XSS filtering, rate limiting, geo-blocking
 
 ### 10.2 Data Security
 
 - Aurora PostgreSQL: encrypted at rest (KMS)
-- S3: SSE-S3 mặc định, SSE-KMS cho sensitive data
-- Redis: in-transit encryption (TLS), at-rest encryption
-- Secrets Manager: rotate credentials tự động 90 ngày
+- S3: SSE-S3 by default; SSE-KMS for sensitive data
+- Redis: in-transit encryption (TLS) and at-rest encryption
+- Secrets Manager: credentials rotated automatically every 90 days
 
 ### 10.3 Application Security
 
-- JWT validation: verify Cognito public key
-- Tenant isolation: middleware inject `tenant_id` vào mọi query
-- QR token: JWT HS256 với 6-hour expiry, stored in DynamoDB
-- Payment webhook: HMAC-SHA256 signature verification
-- Input validation: tất cả request body validated trước khi xử lý
+- JWT validation: verify against Cognito public key
+- RBAC: each endpoint checks the `role` claim against a permission matrix
+- Tenant isolation: middleware injects `tenant_id` into every database query
+- QR token: JWT HS256 with 6-hour expiry, stored in DynamoDB blocklist on regeneration
+- Payment webhook: HMAC-SHA256 signature verification before any processing
+- Input validation: all request bodies validated before processing
 
 ---
 
@@ -670,7 +825,7 @@ Push to branch
 
 ### 11.3 Infrastructure as Code
 
-Toàn bộ AWS infrastructure được quản lý bằng **AWS CDK (TypeScript)** tại `infra/`.
+All AWS infrastructure is managed with **AWS CDK (TypeScript)** in `infra/`.
 
 ```
 infra/
@@ -701,11 +856,11 @@ infra/
 
 ### 12.2 Cost Optimization
 
-- Aurora Serverless v2 pauses at 0 ACU trong dev/staging khi không có traffic
+- Aurora Serverless v2 pauses at 0 ACU in dev/staging when there is no traffic
 - S3 lifecycle: move old images to S3 Glacier after 90 days
-- CloudFront caches menu images (TTL 24h) → giảm S3 GET requests
-- Lambda cho webhook processors (pay-per-execution, không idle cost)
-- Reserved instances cho production ECS tasks chạy 24/7
+- CloudFront caches menu images (TTL 24h) to reduce S3 GET requests
+- Lambda for webhook processors (pay-per-execution, no idle cost)
+- Reserved instances for production ECS tasks that run 24/7
 
 ---
 
@@ -716,7 +871,7 @@ infra/
 | Single AZ failure | 0 | < 1 min | Multi-AZ active-passive (Aurora, ECS) |
 | Region failure | 1 hour | 4 hours | S3 cross-region replication, DB snapshot restore |
 | Accidental data deletion | 5 min | 30 min | Aurora Point-in-Time Recovery (35 days) |
-| Application bug | 0 | 10 min | ECS rolling deploy với rollback |
+| Application bug | 0 | 10 min | ECS rolling deploy with automatic rollback |
 
 ---
 

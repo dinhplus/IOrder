@@ -10,18 +10,18 @@ Accepted
 
 ## Context
 
-IOrder cần một kiến trúc cloud có khả năng:
-- Hỗ trợ multi-tenant (nhiều nhà hàng độc lập)
-- Scale tự động theo traffic thực tế (giờ cao điểm bữa trưa/tối)
-- Đảm bảo uptime ≥ 99.9% (SLA)
-- Chi phí tối ưu cho giai đoạn đầu (pay-as-you-go)
-- Developer experience tốt (CI/CD nhanh, dễ debug)
+IOrder requires a cloud architecture that can:
+- Support multi-tenancy (multiple independent restaurants)
+- Auto-scale according to real traffic patterns (lunch and dinner peak hours)
+- Guarantee uptime ≥ 99.9% (SLA)
+- Optimize cost for the early stage (pay-as-you-go)
+- Provide a good developer experience (fast CI/CD, easy debugging)
 
-AWS được chọn là cloud provider chính vì:
-- Team đã có kinh nghiệm với AWS
-- Strong managed services ecosystem (Aurora, Fargate, Cognito)
-- Region `ap-southeast-1` (Singapore) gần thị trường Việt Nam, latency thấp
-- AWS có partnership với các payment gateway Việt Nam (VNPay, MoMo)
+AWS was chosen as the primary cloud provider because:
+- The team already has experience with AWS
+- A strong managed services ecosystem (Aurora, Fargate, Cognito)
+- The `ap-southeast-1` region (Singapore) is close to the Vietnamese market, giving low latency
+- AWS has partnerships with Vietnamese payment gateways (VNPay, MoMo)
 
 ## Decision
 
@@ -29,106 +29,106 @@ AWS được chọn là cloud provider chính vì:
 
 ### Compute: ECS Fargate
 
-Chọn **ECS Fargate** thay vì EC2 hoặc EKS vì:
-- Không quản lý server/node — giảm operational overhead
-- Container-native, phù hợp với Go microservices
-- Auto-scaling tích hợp sẵn
-- Chi phí hợp lý cho scale nhỏ → vừa
-- Simpler than Kubernetes cho team size hiện tại
+**ECS Fargate** was chosen over EC2 or EKS because:
+- No server/node management — reduces operational overhead
+- Container-native, well-suited to Go microservices
+- Built-in auto-scaling
+- Reasonable cost for small-to-medium scale
+- Simpler than Kubernetes for current team size
 
 **Rejected alternatives:**
-- EC2: Phải quản lý OS, patching, security groups phức tạp hơn
-- EKS: Over-engineered cho giai đoạn đầu, chi phí control plane cố định $0.10/h
-- Lambda (API): Cold start latency không phù hợp cho API server (WebSocket không support)
-- App Runner: Kém linh hoạt hơn Fargate (no custom networking, no GPU support)
+- EC2: Requires OS management, patching, and more complex security groups
+- EKS: Over-engineered at this stage; fixed control plane cost of $0.10/h
+- Lambda (for API): Cold-start latency unsuitable for an API server; no WebSocket support
+- App Runner: Less flexible than Fargate (no custom networking, no GPU)
 
 ### Database: Aurora PostgreSQL Serverless v2
 
-Chọn **Aurora PostgreSQL Serverless v2** thay vì RDS hoặc DynamoDB vì:
-- Auto-scales từ 0 ACU (pause khi không dùng) — tiết kiệm chi phí dev/staging
-- PostgreSQL compatibility — dùng được với golang-migrate và pgx
-- Multi-AZ tích hợp, failover < 30 giây
-- Row-Level Security (RLS) cho multi-tenant isolation
-- JSONB support cho flexible schema (modifiers, settings)
+**Aurora PostgreSQL Serverless v2** was chosen over RDS or DynamoDB because:
+- Auto-scales from 0 ACU (pauses when idle) — saves cost in dev/staging
+- Full PostgreSQL compatibility — works with golang-migrate and pgx
+- Built-in Multi-AZ, failover in < 30 seconds
+- Row-Level Security (RLS) for multi-tenant isolation
+- JSONB support for flexible schema (modifiers, settings)
 
 **Rejected alternatives:**
-- RDS PostgreSQL: Không pause được, chi phí cao hơn cho non-prod
-- DynamoDB: Không phù hợp cho relational queries phức tạp (orders + items + payments)
-- PlanetScale/Neon: Vendor risk, không AWS-native
+- RDS PostgreSQL: Cannot pause; higher cost for non-production environments
+- DynamoDB: Not suitable for complex relational queries (orders + items + payments)
+- PlanetScale/Neon: Vendor risk; not AWS-native
 
 ### Cache/Pub-Sub: ElastiCache Redis
 
-Chọn **ElastiCache Redis** vì:
-- Session caching, rate limiting, real-time pub/sub trong một service
-- Redis Pub/Sub phù hợp cho WebSocket order status broadcasting
-- Managed service với automatic failover
-- Phổ biến trong Go ecosystem (go-redis)
+**ElastiCache Redis** was chosen because:
+- Session caching, rate limiting, and real-time pub/sub in a single service
+- Redis Pub/Sub suits WebSocket order-status broadcasting
+- Managed service with automatic failover
+- Widely used in the Go ecosystem (go-redis)
 
 ### CDN: CloudFront
 
-Bắt buộc cho:
-- Static assets (menu images, frontend bundle): cache TTL 24h
-- API edge caching cho public endpoints (menu GET): TTL 5 phút
-- WAF tích hợp sẵn
-- DDoS protection (AWS Shield Standard free tier)
+Required for:
+- Static assets (menu images, frontend bundles): TTL 24h
+- API edge caching for public endpoints (menu GET): TTL 5 minutes
+- Integrated WAF
+- DDoS protection (AWS Shield Standard, included free)
 
 ### Auth: Cognito
 
-Chọn **Cognito** vì:
-- Managed, không cần tự build auth
-- Hỗ trợ social login (Google, Facebook) cho customer
-- MFA cho staff/admin
-- JWT tokens compatible với Go middleware
-- Tích hợp với API Gateway và ALB
+**Cognito** was chosen because:
+- Fully managed; no need to build authentication from scratch
+- Social login (Google, Facebook) for customers
+- MFA for staff and admin
+- JWT tokens compatible with Go middleware
+- Native integration with API Gateway and ALB
 
 **Rejected alternatives:**
-- Auth0: Chi phí cao khi scale, external vendor
-- Keycloak: Cần tự host và maintain
-- Custom JWT: Security risk, không recommend
+- Auth0: High cost at scale; external vendor dependency
+- Keycloak: Requires self-hosting and ongoing maintenance
+- Custom JWT: Security risk; not recommended
 
 ### Real-time: API Gateway WebSocket + Redis Pub/Sub
 
 Architecture:
-1. Client kết nối WebSocket tới API Gateway WS endpoint
-2. `$connect` Lambda lưu `connectionId` vào DynamoDB
-3. API server publish event vào Redis channel khi order state thay đổi
-4. Lambda subscriber nhận từ Redis → gửi qua API Gateway Management API tới các connection liên quan
+1. Client connects to API Gateway WebSocket endpoint
+2. `$connect` Lambda stores `connectionId` → `{tenantId, orderId, role}` in DynamoDB
+3. API server publishes events to Redis channel when order state changes
+4. Lambda subscriber receives from Redis and sends via API Gateway Management API to relevant connections
 
-Lý do không dùng WebSocket trực tiếp trên ECS:
-- ALB WebSocket connections bị giới hạn idle timeout (4000s max)
-- API Gateway WS không bị giới hạn, tự scale, không manage connection state
+Reason for not using WebSocket directly on ECS:
+- ALB WebSocket connections have a limited idle timeout (max 4000s)
+- API Gateway WS has no such limit, auto-scales, and manages connection state automatically
 
 ### Infrastructure as Code: AWS CDK (TypeScript)
 
-Chọn **CDK** thay vì Terraform hoặc CloudFormation raw vì:
-- TypeScript — familiar với frontend team
-- Higher-level abstractions (L2/L3 constructs) giảm boilerplate
-- Type-safe, IDE autocomplete
+**CDK** was chosen over Terraform or raw CloudFormation because:
+- TypeScript — familiar to the frontend team
+- Higher-level abstractions (L2/L3 constructs) reduce boilerplate
+- Type-safe with full IDE autocomplete
 - Native AWS support
 
 **Rejected alternatives:**
-- Terraform: HCL syntax ít familiar, provider lag với AWS mới nhất
-- CloudFormation YAML: Verbose, không có type safety
-- Pulumi: Smaller community, ít examples
+- Terraform: HCL syntax less familiar to the team; provider sometimes lags behind the latest AWS releases
+- CloudFormation YAML: Verbose; no type safety
+- Pulumi: Smaller community; fewer examples
 
 ## Consequences
 
 ### Positive
 
 - Zero-management infrastructure (Fargate, Aurora Serverless, Cognito)
-- Auto-scaling xử lý giờ cao điểm tự động
-- Strong security baseline từ AWS managed services
-- Developer có thể focus vào business logic thay vì infra
-- Cost-optimized: staging/dev environments chạy Aurora Serverless pause khi idle
+- Auto-scaling handles peak hours automatically
+- Strong security baseline from AWS managed services
+- Developers can focus on business logic instead of infrastructure
+- Cost-optimized: dev/staging Aurora Serverless pauses when idle
 
 ### Negative
 
-- AWS vendor lock-in: Migration sang cloud khác tốn kém
-- Learning curve cho CDK nếu team không familiar
-- Aurora Serverless v2 có cold start ~1 giây sau pause — không phù hợp cho dev làm việc ban đêm (cần warm-up strategy)
-- ElastiCache Redis tối thiểu 2 nodes (~$50/month) ngay cả khi traffic thấp
+- AWS vendor lock-in: migrating to another cloud would be expensive
+- CDK learning curve for team members not familiar with it
+- Aurora Serverless v2 has a ~1-second cold start after a pause — not ideal for developers working at night (needs a warm-up strategy)
+- ElastiCache Redis requires a minimum of 2 nodes (~$50/month) even under low traffic
 
 ### Mitigation
 
-- Vendor lock-in: Abstraction layer trong code (repository pattern), infrastructure phần lớn là commodity
-- Aurora cold start: Disable pause trên staging, hoặc schedule warm-up Lambda
+- Vendor lock-in: abstraction layer in code (repository pattern); most infrastructure is commodity
+- Aurora cold start: disable pause on staging, or schedule a warm-up Lambda

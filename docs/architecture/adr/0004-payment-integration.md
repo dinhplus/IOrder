@@ -10,14 +10,14 @@ Accepted
 
 ## Context
 
-IOrder cần hỗ trợ nhiều phương thức thanh toán phổ biến tại thị trường Việt Nam và quốc tế. Yêu cầu:
+IOrder needs to support the payment methods most popular in the Vietnamese and international markets. Requirements:
 
-1. Hỗ trợ VietQR (chuẩn ngân hàng Việt Nam), MoMo, ZaloPay, ShopeePay
-2. Hỗ trợ thẻ quốc tế (Visa/Mastercard) cho nhà hàng cao cấp / khách quốc tế
-3. Webhook-based confirmation (async) — không poll API liên tục
+1. Support VietQR (Vietnamese inter-bank standard), MoMo, ZaloPay, and ShopeePay
+2. Support international cards (Visa/Mastercard) for upscale restaurants and international guests
+3. Webhook-based confirmation (async) — avoid continuous polling
 4. Idempotent webhook handling
-5. PCI DSS compliance (không lưu thông tin thẻ)
-6. Dễ thêm provider mới trong tương lai
+5. PCI DSS compliance (no card data stored on our servers)
+6. Easy to add new providers in the future
 
 ## Decision
 
@@ -25,16 +25,16 @@ IOrder cần hỗ trợ nhiều phương thức thanh toán phổ biến tại t
 
 | Provider | Market | Use Case |
 |---|---|---|
-| **VietQR** (via VietQR open standard) | Việt Nam | QR code liên ngân hàng, miễn phí |
-| **MoMo** | Việt Nam | Ví điện tử phổ biến nhất VN |
-| **ZaloPay** | Việt Nam | Ví điện tử tích hợp Zalo ecosystem |
-| **ShopeePay** (Airpay) | SEA | Ví điện tử Shopee, phổ biến giới trẻ |
-| **Adyen** | International | Thẻ Visa/MC/JCB, Apple Pay, Google Pay |
+| **VietQR** (open standard) | Vietnam | Inter-bank QR code; free to generate |
+| **MoMo** | Vietnam | Most popular digital wallet in Vietnam |
+| **ZaloPay** | Vietnam | Digital wallet integrated into Zalo ecosystem |
+| **ShopeePay** (Airpay) | SEA | Digital wallet popular among younger users |
+| **Adyen** | International | Visa/MC/JCB; Apple Pay, Google Pay |
 
 **Rejected:**
-- Stripe: Chưa hỗ trợ Vietnam merchant natively (2026)
-- VNPay: Phức tạp onboarding, phí transaction cao hơn
-- PayOS: Phù hợp cho cá nhân/startup nhỏ, ít tính năng enterprise
+- Stripe: No native Vietnam merchant support as of 2026
+- VNPay: Complex onboarding; higher transaction fees
+- PayOS: Suitable for individuals/small startups; insufficient enterprise features
 
 ### Architecture Pattern: Provider Abstraction
 
@@ -42,17 +42,17 @@ IOrder cần hỗ trợ nhiều phương thức thanh toán phổ biến tại t
 // domain/payment/provider.go
 
 type PaymentProvider interface {
-    // CreatePayment initiates a payment and returns checkout URL or QR data
+    // CreatePayment initiates a payment and returns a checkout URL or QR data
     CreatePayment(ctx context.Context, req CreatePaymentRequest) (*PaymentResult, error)
-    // VerifyWebhook validates the webhook signature and returns parsed event
+    // VerifyWebhook validates the webhook signature and returns the parsed event
     VerifyWebhook(ctx context.Context, payload []byte, headers map[string]string) (*WebhookEvent, error)
-    // GetPaymentStatus queries current payment status (for polling fallback)
+    // GetPaymentStatus queries the current payment status (polling fallback)
     GetPaymentStatus(ctx context.Context, providerRef string) (*PaymentStatus, error)
 }
 
 type CreatePaymentRequest struct {
     OrderID     string
-    Amount      int64    // in smallest currency unit (xu/satoshi)
+    Amount      int64    // in smallest currency unit (xu/cent)
     Currency    string
     Description string
     ReturnURL   string
@@ -61,66 +61,66 @@ type CreatePaymentRequest struct {
 }
 
 type PaymentResult struct {
-    ProviderRef    string  // external transaction ID
-    CheckoutURL    string  // redirect URL (for MoMo/ZaloPay deep link)
-    QRData         string  // VietQR QR string or MoMo QR
-    QRImageURL     string  // rendered QR image URL (optional)
+    ProviderRef    string    // external transaction ID
+    CheckoutURL    string    // redirect URL (for MoMo/ZaloPay deep link)
+    QRData         string    // VietQR string or MoMo QR
+    QRImageURL     string    // rendered QR image URL (optional)
     ExpiresAt      time.Time
 }
 ```
 
 ### VietQR Implementation
 
-VietQR là chuẩn mở, không cần tích hợp qua một nhà cung cấp cụ thể:
+VietQR is an open standard; no API key is required to generate the QR string:
 
 ```go
-// Tạo VietQR string theo chuẩn NAPAS/VIETQR
-func BuildVietQRString(bankBIN, accountNo, amount int64, description string) string {
-    // Format theo chuẩn EMV QR Code (ISO 20022)
-    // Không cần API key, tạo trực tiếp
+// Build a VietQR string following the NAPAS/VIETQR EMV QR Code standard (ISO 20022)
+func BuildVietQRString(bankBIN, accountNo string, amount int64, description string) string {
+    // Format per the EMV QR Code standard
+    // No API key needed; generated directly in the backend
 }
 ```
 
-Để xác nhận thanh toán VietQR:
-- Integrate với **Casso** hoặc **Payos** để nhận webhook khi có giao dịch vào tài khoản
-- Hoặc bank API trực tiếp (MB Bank, VCB, ACB có open banking)
+To confirm VietQR payments:
+- Integrate with **Casso** or **PayOS** to receive a webhook when a transaction arrives in the bank account
+- Or use a bank's open banking API directly (MB Bank, VCB, ACB all offer this)
 
 ### MoMo Integration
 
 ```go
 // infrastructure/payment/momo/provider.go
-// Sử dụng MoMo Payment Gateway API v2
-// Doc: https://developers.momo.vn/
+// Uses MoMo Payment Gateway API v2
+// Docs: https://developers.momo.vn/
 ```
 
 Flow:
 1. POST `https://payment.momo.vn/v2/gateway/api/create`
-2. Nhận `payUrl` hoặc `qrCodeUrl`
-3. Customer thanh toán
-4. MoMo POST webhook tới `POST /api/v1/payments/webhooks/momo`
+2. Receive `payUrl` or `qrCodeUrl`
+3. Customer pays in MoMo app
+4. MoMo POSTs a webhook to `POST /api/v1/payments/webhooks/momo`
 5. Verify `signature` = HMAC-SHA256(rawBody, secretKey)
 6. Update payment status
 
 ### ZaloPay Integration
 
-Flow tương tự MoMo, sử dụng ZaloPay Merchant API:
+Similar flow to MoMo, using the ZaloPay Merchant API:
 - Endpoint: `https://sb-openapi.zalopay.vn/v2/create`
-- Webhook verification: HMAC-SHA256 với `key2` (ZaloPay specific)
+- Webhook verification: HMAC-SHA256 with `key2` (ZaloPay-specific)
 
 ### Adyen Integration
 
-Sử dụng **Adyen Drop-in** (hosted payment UI) cho thẻ quốc tế:
-- Adyen handle PCI DSS scope, không cần lưu card data
-- Webhook: Adyen Notification Service với HMAC
-- Hỗ trợ Apple Pay, Google Pay automatically
+Uses **Adyen Drop-in** (hosted payment UI) for international cards:
+- Adyen handles PCI DSS scope; no card data is stored on IOrder servers
+- Webhook: Adyen Notification Service with HMAC
+- Apple Pay and Google Pay are supported automatically
 
 ### Webhook Security
 
-Tất cả webhook endpoint phải:
-1. Verify HMAC signature trước khi xử lý
-2. Return 200 ngay (processing async qua SQS)
-3. Idempotent: check `provider_ref` đã xử lý chưa
-4. Retry: nếu SQS consumer fail, message được retry tự động (max 3 lần)
+All webhook endpoints must:
+1. Verify the HMAC signature before any processing
+2. Return HTTP 200 immediately (processing happens asynchronously via SQS)
+3. Be idempotent: check `provider_ref` to avoid duplicate processing
+4. Retry: if the SQS consumer fails, the message is retried automatically (max 3 attempts)
 
 ```go
 func (h *PaymentHandler) HandleMoMoWebhook(c *gin.Context) {
@@ -146,34 +146,34 @@ func (h *PaymentHandler) HandleMoMoWebhook(c *gin.Context) {
 
 ### Payment Status Polling Fallback
 
-Trong trường hợp webhook không đến (network issue):
-- Background Lambda chạy mỗi 2 phút query `payments` table cho orders `pending` > 5 phút
-- Gọi `GetPaymentStatus()` từ provider
-- Cập nhật trạng thái nếu đã paid
+In case a webhook does not arrive (network issue):
+- A background Lambda runs every 2 minutes and queries the `payments` table for orders with status `pending` for more than 5 minutes
+- Calls `GetPaymentStatus()` from the provider
+- Updates status if already paid
 
 ### Refund Policy
 
-- Refund không nằm trong scope v1.0
-- Staff có thể đánh dấu "manual refund" trong dashboard
-- Tracking trong `payment_refunds` table (v2.0)
+- Refunds are out of scope for v1.0
+- Staff can mark a payment as "manual refund" in the dashboard
+- Full refund tracking will be in `payment_refunds` table (v2.0)
 
 ## Consequences
 
 ### Positive
 
-- Provider abstraction cho phép thêm provider mới không cần thay đổi business logic
-- Webhook + async processing không block API response
-- Idempotent handling ngăn duplicate processing
-- PCI DSS compliant vì không lưu card data (delegated to Adyen)
+- Provider abstraction allows adding new providers without changing business logic
+- Webhook + async processing does not block the API response
+- Idempotent handling prevents duplicate processing
+- PCI DSS compliant because card data is never stored (delegated to Adyen)
 
 ### Negative
 
-- Cần maintain nhiều webhook endpoint và HMAC keys
-- Test integration với các sandbox environment (MoMo, ZaloPay đều có sandbox)
-- VietQR confirmation phụ thuộc vào Casso/bank API — thêm external dependency
+- Multiple webhook endpoints and HMAC keys to maintain
+- Each provider requires integration testing against sandbox environments (MoMo and ZaloPay both have sandboxes)
+- VietQR confirmation depends on Casso/bank API — an additional external dependency
 
 ### Mitigation
 
-- Viết integration tests với sandbox của từng provider
-- Mock `PaymentProvider` interface trong unit tests
-- Monitoring: alert nếu payment completion rate < 95% trong 5 phút
+- Write integration tests against each provider's sandbox
+- Mock `PaymentProvider` interface in unit tests
+- Monitoring: alert if payment completion rate drops below 95% over 5 minutes

@@ -10,12 +10,12 @@ Accepted
 
 ## Context
 
-Đơn hàng trong nhà hàng có vòng đời phức tạp với nhiều actor (customer, staff, kitchen, payment system) thay đổi trạng thái. Cần thiết kế state machine rõ ràng để:
+Restaurant orders have a complex lifecycle with multiple actors (customer, waiter, chef, bartender, server, cashier, payment system) changing the order status. A well-defined state machine is necessary to:
 
-1. Ngăn chặn transition không hợp lệ (ví dụ: nhảy từ DRAFT sang PAID)
-2. Đảm bảo audit trail đầy đủ (ai thay đổi gì, khi nào)
-3. Real-time notification đúng đối tượng khi state thay đổi
-4. Hỗ trợ nhiều loại đơn (gọi thêm món, tách bill)
+1. Prevent invalid transitions (e.g., jumping directly from DRAFT to PAID)
+2. Guarantee a complete audit trail (who changed what, when)
+3. Send real-time notifications to the correct actor when state changes
+4. Support multiple order rounds per table session and split-bill scenarios
 
 ## Decision
 
@@ -79,20 +79,20 @@ Accepted
 
 | From | To | Actor | Trigger |
 |---|---|---|---|
-| `DRAFT` | `SUBMITTED` | Customer | Submit order button |
-| `SUBMITTED` | `CONFIRMED` | Staff / Auto | Staff confirms, or auto-confirm enabled |
-| `SUBMITTED` | `REJECTED` | Staff | Staff rejects (out of stock, etc.) |
-| `CONFIRMED` | `IN_PREPARATION` | Kitchen Staff | KDS: start cooking |
-| `IN_PREPARATION` | `READY` | Kitchen Staff | KDS: mark done |
-| `READY` | `SERVED` | Staff | Mark as delivered to table |
-| `SERVED` | `DRAFT` | Customer | Add more items (new order round) |
-| `SERVED` | `PAYMENT_REQUESTED` | Customer/Staff | Request bill |
+| `DRAFT` | `SUBMITTED` | Customer / Waiter | Submit order button |
+| `SUBMITTED` | `CONFIRMED` | Waiter / Auto | Waiter confirms, or auto-confirm is enabled |
+| `SUBMITTED` | `REJECTED` | Waiter / Manager | Item out of stock or other issue |
+| `CONFIRMED` | `IN_PREPARATION` | Chef / Bartender | KDS/BDS: start cooking/preparing |
+| `IN_PREPARATION` | `READY` | Chef / Bartender | KDS/BDS: mark done |
+| `READY` | `SERVED` | Server / Waiter | Delivered to table |
+| `SERVED` | `DRAFT` | Customer / Waiter | Add more items (new order round) |
+| `SERVED` | `PAYMENT_REQUESTED` | Customer / Waiter | Request bill |
 | `PAYMENT_REQUESTED` | `PAID` | Payment System | Webhook success |
 | `PAYMENT_REQUESTED` | `SERVED` | System | Payment timeout → back to SERVED |
 | `PAID` | `CLOSED` | System | Auto-close after 15 minutes |
-| `DRAFT` | `CANCELLED` | Customer/Staff | Cancel before submit |
-| `SUBMITTED` | `CANCELLED` | Staff | Cancel after submit |
-| `CONFIRMED` | `CANCELLED` | Staff | Cancel before preparation |
+| `DRAFT` | `CANCELLED` | Customer / Waiter | Cancel before submit |
+| `SUBMITTED` | `CANCELLED` | Waiter / Manager | Cancel after submit |
+| `CONFIRMED` | `CANCELLED` | Waiter / Manager | Cancel before preparation |
 
 ### Implementation in Go
 
@@ -142,16 +142,24 @@ func CanTransition(from, to OrderStatus) bool {
 }
 ```
 
+### KDS / BDS Item Routing
+
+When an order is CONFIRMED, its items are routed based on the category type:
+- `category.type = "food"` → routed to KDS (Kitchen Display System)
+- `category.type = "beverage"` → routed to BDS (Bar Display System)
+
+Each display only shows the relevant items, allowing kitchen and bar to work independently and in parallel.
+
 ### Session-Based Multi-Round Ordering
 
-Khi khách muốn gọi thêm món sau khi đơn đầu đã SERVED:
-- Tạo đơn mới với cùng `session_id` và `table_id`
-- Đơn mới bắt đầu từ DRAFT
-- Khi thanh toán: tổng hợp tất cả đơn cùng `session_id` thành một bill
+When a customer wants to order additional items after their first order has been SERVED:
+- A new order is created with the same `session_id` and `table_id`
+- The new order starts from DRAFT
+- At checkout, all orders sharing the same `session_id` are consolidated into a single bill
 
 ### Event Publishing
 
-Mỗi state transition publish một event vào EventBridge:
+Every state transition publishes an event to EventBridge:
 
 ```json
 {
@@ -173,31 +181,31 @@ Mỗi state transition publish một event vào EventBridge:
 
 EventBridge rules:
 - `OrderStatusChanged` → SQS → Notification Worker (Push/SMS to customer)
-- `OrderStatusChanged` where `toStatus=CONFIRMED` → SQS → KDS Worker
-- `OrderStatusChanged` where `toStatus=PAID` → SQS → Membership Points Worker
+- `OrderStatusChanged` where `toStatus=CONFIRMED` → SQS → KDS/BDS Worker
+- `OrderStatusChanged` where `toStatus=PAID` → SQS → Membership Points Worker + Inventory Deduction Worker
 
 ### Audit Log
 
-Tất cả transitions được ghi vào bảng `order_events` (immutable append-only log).
+All transitions are written to the `order_events` table (immutable append-only log).
 
 ## Consequences
 
 ### Positive
 
-- Trạng thái đơn hàng luôn nhất quán, không thể có transition bất hợp lệ
-- Audit trail đầy đủ cho mọi thay đổi trạng thái
-- Event-driven architecture giúp decoupling giữa các concerns
-- Dễ thêm trạng thái mới trong tương lai (ví dụ: REFUNDED)
-- Clear actor responsibility cho mỗi transition
+- Order status is always consistent; invalid transitions are impossible
+- Complete audit trail for every status change
+- Event-driven architecture decouples notifications, KDS, inventory, and membership concerns
+- Easy to add new states in the future (e.g., REFUNDED)
+- Clear actor responsibility for every transition
 
 ### Negative
 
-- Phức tạp hơn simple CRUD approach
-- Cần đồng bộ state machine giữa backend logic và frontend UI
-- Thêm bảng `order_events` và overhead ghi log
+- More complex than a simple CRUD approach
+- State machine must be kept in sync between backend logic and frontend/mobile UI
+- Additional `order_events` table adds write overhead
 
 ### Mitigation
 
-- Viết unit tests toàn bộ valid/invalid transitions
-- Document state diagram rõ ràng (file này)
-- Share TypeScript types cho FE/Mobile để tránh inconsistency
+- Write unit tests covering all valid and invalid transitions
+- Document state diagram clearly (this file)
+- Share TypeScript enum types between FE and mobile to avoid inconsistency

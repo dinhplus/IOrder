@@ -2,13 +2,13 @@
 
 > **Author:** Tech Lead
 > **Date:** 2026-03-02
-> **Version:** 1.0
+> **Version:** 2.0
 
 ---
 
 ## Overview
 
-Hướng dẫn này mô tả cách thiết lập môi trường local, deploy lên AWS, và vận hành hệ thống IOrder.
+This guide describes how to set up a local environment, deploy to AWS, and operate the IOrder system.
 
 ---
 
@@ -27,7 +27,7 @@ aws-cli 2.15+
 make
 ```
 
-Cài đặt:
+Install:
 ```bash
 # Go (Linux/macOS)
 wget https://go.dev/dl/go1.24.linux-amd64.tar.gz
@@ -465,10 +465,10 @@ aws secretsmanager get-secret-value \
 
 ### 8.3 Local Development (No AWS Secrets Manager)
 
-Trong local dev, sử dụng `.env` file thay vì Secrets Manager:
+In local development, use the `.env` file instead of Secrets Manager:
 ```bash
 cp backend/.env.example backend/.env
-# Edit .env với giá trị local
+# Edit .env with your local values
 ```
 
 ---
@@ -620,12 +620,12 @@ curl -X POST https://api.iorder.vn/api/v1/tenants \
   -H "Authorization: Bearer $ADMIN_JWT" \
   -H "Content-Type: application/json" \
   -d '{
-    "name": "Phở Hà Nội",
+    "name": "Pho Ha Noi",
     "slug": "pho-ha-noi",
     "timezone": "Asia/Ho_Chi_Minh",
     "currency": "VND",
     "owner_email": "owner@phonhanoi.vn",
-    "owner_name": "Nguyễn Văn A"
+    "owner_name": "Owner Name"
   }'
 ```
 
