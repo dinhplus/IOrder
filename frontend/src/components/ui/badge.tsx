@@ -1,9 +1,10 @@
 interface BadgeProps {
   variant?: "default" | "success" | "warning" | "danger" | "outline";
   children: React.ReactNode;
+  className?: string;
 }
 
-export function Badge({ variant = "default", children }: BadgeProps): React.JSX.Element {
+export function Badge({ variant = "default", children, className = "" }: BadgeProps): React.JSX.Element {
   const variantClasses: Record<NonNullable<BadgeProps["variant"]>, string> = {
     default: "bg-secondary text-secondary-foreground",
     success: "bg-success/10 text-success",
@@ -14,7 +15,7 @@ export function Badge({ variant = "default", children }: BadgeProps): React.JSX.
 
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${variantClasses[variant]}`}
+      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${variantClasses[variant]} ${className}`}
     >
       {children}
     </span>

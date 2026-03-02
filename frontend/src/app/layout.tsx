@@ -24,6 +24,18 @@ export default function RootLayout({
               <Link href="/" className="hover:text-foreground transition-colors">
                 Home
               </Link>
+              <Link href="/menu" className="hover:text-foreground transition-colors">
+                Menu
+              </Link>
+              <Link href="/orders" className="hover:text-foreground transition-colors">
+                Orders
+              </Link>
+              <Link href="/kitchen" className="hover:text-foreground transition-colors">
+                Kitchen
+              </Link>
+              <Link href="/floor-plan" className="hover:text-foreground transition-colors">
+                Floor Plan
+              </Link>
             </nav>
           </div>
         </header>
