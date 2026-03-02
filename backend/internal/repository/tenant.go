@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"time"
 )
 
@@ -47,7 +48,7 @@ func (r *TenantRepository) GetByID(ctx context.Context, id string) (*Tenant, err
 		`SELECT id, slug, name, logo_url, timezone, currency, is_active, settings, created_at, updated_at
 		 FROM tenants WHERE id = $1`, id,
 	).Scan(&t.ID, &t.Slug, &t.Name, &t.LogoURL, &t.Timezone, &t.Currency, &t.IsActive, &t.Settings, &t.CreatedAt, &t.UpdatedAt)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	return t, err
@@ -59,7 +60,7 @@ func (r *TenantRepository) GetBySlug(ctx context.Context, slug string) (*Tenant,
 		`SELECT id, slug, name, logo_url, timezone, currency, is_active, settings, created_at, updated_at
 		 FROM tenants WHERE slug = $1`, slug,
 	).Scan(&t.ID, &t.Slug, &t.Name, &t.LogoURL, &t.Timezone, &t.Currency, &t.IsActive, &t.Settings, &t.CreatedAt, &t.UpdatedAt)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	return t, err

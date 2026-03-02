@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"time"
 
 	"github.com/lib/pq"
@@ -56,7 +57,7 @@ func (r *MenuRepository) GetCategory(ctx context.Context, id, tenantID string) (
 		`SELECT id, tenant_id, name, type, description, sort_order, is_active, created_at
 		 FROM menu_categories WHERE id=$1 AND tenant_id=$2`, id, tenantID,
 	).Scan(&c.ID, &c.TenantID, &c.Name, &c.Type, &c.Description, &c.SortOrder, &c.IsActive, &c.CreatedAt)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	return c, err
@@ -127,7 +128,7 @@ func (r *MenuRepository) GetItem(ctx context.Context, id, tenantID string) (*Men
 		`SELECT id, tenant_id, category_id, name, description, price, image_url, tags, is_available, sort_order, created_at, updated_at
 		 FROM menu_items WHERE id=$1 AND tenant_id=$2`, id, tenantID,
 	).Scan(&item.ID, &item.TenantID, &item.CategoryID, &item.Name, &item.Description, &item.Price, &item.ImageURL, pq.Array(&item.Tags), &item.IsAvailable, &item.SortOrder, &item.CreatedAt, &item.UpdatedAt)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	return item, err

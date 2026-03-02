@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -153,7 +154,7 @@ func (h *MenuHandler) UpdateCategory() gin.HandlerFunc {
 			existing.IsActive = *req.IsActive
 		}
 		if err := h.repo.UpdateCategory(c.Request.Context(), existing); err != nil {
-			if err == sql.ErrNoRows {
+			if errors.Is(err, sql.ErrNoRows) {
 				RespondError(c, http.StatusNotFound, ErrNotFound, "category not found")
 				return
 			}
@@ -173,7 +174,7 @@ func (h *MenuHandler) DeleteCategory() gin.HandlerFunc {
 		}
 		id := c.Param("id")
 		if err := h.repo.DeleteCategory(c.Request.Context(), id, tenantID); err != nil {
-			if err == sql.ErrNoRows {
+			if errors.Is(err, sql.ErrNoRows) {
 				RespondError(c, http.StatusNotFound, ErrNotFound, "category not found")
 				return
 			}
@@ -255,13 +256,13 @@ func (h *MenuHandler) CreateItem() gin.HandlerFunc {
 }
 
 type updateItemRequest struct {
-	CategoryID  string   `json:"category_id"`
-	Name        string   `json:"name"`
-	Description *string  `json:"description"`
-	Price       int64    `json:"price"`
-	ImageURL    *string  `json:"image_url"`
-	IsAvailable *bool    `json:"is_available"`
-	SortOrder   *int     `json:"sort_order"`
+	CategoryID  string  `json:"category_id"`
+	Name        string  `json:"name"`
+	Description *string `json:"description"`
+	Price       *int64  `json:"price"`
+	ImageURL    *string `json:"image_url"`
+	IsAvailable *bool   `json:"is_available"`
+	SortOrder   *int    `json:"sort_order"`
 }
 
 // UpdateItem handles PUT /api/v1/menu/items/:id.
@@ -295,8 +296,8 @@ func (h *MenuHandler) UpdateItem() gin.HandlerFunc {
 		if req.Description != nil {
 			existing.Description = req.Description
 		}
-		if req.Price >= 0 {
-			existing.Price = req.Price
+		if req.Price != nil {
+			existing.Price = *req.Price
 		}
 		if req.ImageURL != nil {
 			existing.ImageURL = req.ImageURL
@@ -308,7 +309,7 @@ func (h *MenuHandler) UpdateItem() gin.HandlerFunc {
 			existing.SortOrder = *req.SortOrder
 		}
 		if err := h.repo.UpdateItem(c.Request.Context(), existing); err != nil {
-			if err == sql.ErrNoRows {
+			if errors.Is(err, sql.ErrNoRows) {
 				RespondError(c, http.StatusNotFound, ErrNotFound, "item not found")
 				return
 			}
@@ -337,7 +338,7 @@ func (h *MenuHandler) ToggleAvailability() gin.HandlerFunc {
 			return
 		}
 		if err := h.repo.ToggleItemAvailability(c.Request.Context(), id, tenantID, req.IsAvailable); err != nil {
-			if err == sql.ErrNoRows {
+			if errors.Is(err, sql.ErrNoRows) {
 				RespondError(c, http.StatusNotFound, ErrNotFound, "item not found")
 				return
 			}
@@ -357,7 +358,7 @@ func (h *MenuHandler) DeleteItem() gin.HandlerFunc {
 		}
 		id := c.Param("id")
 		if err := h.repo.DeleteItem(c.Request.Context(), id, tenantID); err != nil {
-			if err == sql.ErrNoRows {
+			if errors.Is(err, sql.ErrNoRows) {
 				RespondError(c, http.StatusNotFound, ErrNotFound, "item not found")
 				return
 			}

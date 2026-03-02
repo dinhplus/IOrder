@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -157,7 +158,7 @@ func (h *TenantHandler) UpdateTenant() gin.HandlerFunc {
 		}
 
 		if err := h.repo.Update(c.Request.Context(), existing); err != nil {
-			if err == sql.ErrNoRows {
+			if errors.Is(err, sql.ErrNoRows) {
 				RespondError(c, http.StatusNotFound, ErrNotFound, "tenant not found")
 				return
 			}

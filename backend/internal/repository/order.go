@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"time"
 )
 
@@ -92,7 +93,7 @@ func (r *OrderRepository) GetByID(ctx context.Context, id string) (*Order, error
 		&o.Subtotal, &o.DiscountAmount, &o.Total, &o.Notes,
 		&o.PlacedAt, &o.ConfirmedAt, &o.ReadyAt, &o.ServedAt, &o.PaidAt,
 		&o.CreatedAt, &o.UpdatedAt)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	return o, err

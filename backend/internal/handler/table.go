@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -129,7 +130,7 @@ func (h *TableHandler) UpdateFloorPlan() gin.HandlerFunc {
 			existing.IsActive = *req.IsActive
 		}
 		if err := h.repo.UpdateFloorPlan(c.Request.Context(), existing); err != nil {
-			if err == sql.ErrNoRows {
+			if errors.Is(err, sql.ErrNoRows) {
 				RespondError(c, http.StatusNotFound, ErrNotFound, "floor plan not found")
 				return
 			}
@@ -269,7 +270,7 @@ func (h *TableHandler) UpdateTable() gin.HandlerFunc {
 			existing.Status = req.Status
 		}
 		if err := h.repo.UpdateTable(c.Request.Context(), existing); err != nil {
-			if err == sql.ErrNoRows {
+			if errors.Is(err, sql.ErrNoRows) {
 				RespondError(c, http.StatusNotFound, ErrNotFound, "table not found")
 				return
 			}
@@ -289,7 +290,7 @@ func (h *TableHandler) DeleteTable() gin.HandlerFunc {
 		}
 		id := c.Param("id")
 		if err := h.repo.DeleteTable(c.Request.Context(), id, tenantID); err != nil {
-			if err == sql.ErrNoRows {
+			if errors.Is(err, sql.ErrNoRows) {
 				RespondError(c, http.StatusNotFound, ErrNotFound, "table not found")
 				return
 			}

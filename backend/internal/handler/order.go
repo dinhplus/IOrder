@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -160,7 +161,7 @@ func (h *OrderHandler) UpdateOrderItems() gin.HandlerFunc {
 			})
 		}
 		if err := h.repo.UpdateItems(c.Request.Context(), id, tenantID, items); err != nil {
-			if err == sql.ErrNoRows {
+			if errors.Is(err, sql.ErrNoRows) {
 				RespondError(c, http.StatusNotFound, ErrNotFound, "order not found")
 				return
 			}

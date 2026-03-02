@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"time"
 )
 
@@ -52,7 +53,7 @@ func (r *TableRepository) GetFloorPlan(ctx context.Context, id, tenantID string)
 		`SELECT id, tenant_id, name, floor_level, is_active, created_at FROM floor_plans WHERE id=$1 AND tenant_id=$2`,
 		id, tenantID,
 	).Scan(&fp.ID, &fp.TenantID, &fp.Name, &fp.FloorLevel, &fp.IsActive, &fp.CreatedAt)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	return fp, err
@@ -125,7 +126,7 @@ func (r *TableRepository) GetTable(ctx context.Context, id, tenantID string) (*R
 		`SELECT id, tenant_id, floor_plan_id, name, capacity, pos_x, pos_y, shape, status, qr_token, qr_expires_at, created_at
 		 FROM restaurant_tables WHERE id=$1 AND tenant_id=$2`, id, tenantID,
 	).Scan(&t.ID, &t.TenantID, &t.FloorPlanID, &t.Name, &t.Capacity, &t.PosX, &t.PosY, &t.Shape, &t.Status, &t.QRToken, &t.QRExpiresAt, &t.CreatedAt)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	return t, err
