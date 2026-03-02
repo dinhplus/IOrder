@@ -57,6 +57,17 @@ IOrder/
 - Env: API URL via `expo-constants` from `app.json` extra config
 - Run `pnpm run typecheck && pnpm run lint && pnpm test` before committing
 
+## CI Monitoring (Required for Every Agent Session)
+
+After pushing changes or opening a PR, **always** proactively check CI results:
+
+1. Use `list_workflow_runs` (GitHub MCP) to find the latest run for your branch.
+2. Use `get_job_logs` (GitHub MCP) to read detailed logs for any failed jobs.
+3. If CI fails, investigate the logs, fix the root cause, and push again.
+4. Repeat until all CI checks pass.
+
+Never consider a task complete while CI is red.
+
 ## Code Style
 
 - Go: idiomatic, no magic numbers, context propagation, handle all errors
