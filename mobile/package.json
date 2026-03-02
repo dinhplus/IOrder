@@ -12,15 +12,18 @@
     "test": "jest --passWithNoTests"
   },
   "dependencies": {
+    "@react-navigation/native": "^7.0.14",
     "expo": "~52.0.46",
+    "expo-constants": "~17.0.8",
     "expo-router": "~4.0.20",
     "expo-status-bar": "~2.0.1",
     "react": "18.3.1",
-    "react-native": "0.76.9",
-    "@react-navigation/native": "^7.0.14"
+    "react-native": "0.76.9"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
+    "@testing-library/react-native": "^13.3.3",
+    "@types/jest": "^30.0.0",
     "@types/react": "~18.3.12",
     "eslint": "^9.0.0",
     "eslint-config-expo": "~8.0.1",
@@ -29,6 +32,9 @@
     "typescript": "~5.3.3"
   },
   "jest": {
-    "preset": "jest-expo"
+    "preset": "jest-expo",
+    "transformIgnorePatterns": [
+      "node_modules/(?!(?:\\.pnpm/|(jest-)?react-native|@react-native(-community)?|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@sentry/react-native|native-base|react-native-svg))"
+    ]
   }
 }
