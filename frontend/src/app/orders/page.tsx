@@ -1,4 +1,5 @@
 import { listOrders } from "@/lib/api/orders";
+import { formatCurrency } from "@/lib/format";
 import { OrderStatusBadge } from "@/components/features/orders/order-status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { Order, OrderStatus } from "@/types/order";
@@ -81,7 +82,7 @@ export default async function OrdersPage(): Promise<React.JSX.Element> {
                     <dl className="flex flex-col gap-1 text-sm">
                       <div className="flex justify-between">
                         <dt className="text-muted-foreground">Total</dt>
-                        <dd className="font-medium">{order.total.toLocaleString("vi-VN")}₫</dd>
+                        <dd className="font-medium">{formatCurrency(order.total)}</dd>
                       </div>
                       <div className="flex justify-between">
                         <dt className="text-muted-foreground">Created</dt>

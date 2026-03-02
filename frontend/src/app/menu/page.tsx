@@ -1,4 +1,5 @@
 import { listCategories, listItems } from "@/lib/api/menu";
+import { formatCurrency } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { MenuCategory, MenuItem } from "@/types/menu";
@@ -70,7 +71,7 @@ export default async function MenuPage(): Promise<React.JSX.Element> {
                       </CardHeader>
                       <CardContent>
                         <p className="text-sm font-semibold text-primary">
-                          {item.price.toLocaleString("vi-VN")}₫
+                          {formatCurrency(item.price)}
                         </p>
                       </CardContent>
                     </Card>
