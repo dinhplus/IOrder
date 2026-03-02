@@ -7,6 +7,7 @@ export type OrderStatus =
   | "SERVED"
   | "PAYMENT_REQUESTED"
   | "PAID"
+  | "CLOSED"
   | "CANCELLED"
   | "REJECTED";
 

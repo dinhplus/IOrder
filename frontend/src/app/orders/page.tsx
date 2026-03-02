@@ -15,6 +15,7 @@ const STATUS_ORDER: OrderStatus[] = [
   "DRAFT",
   "SERVED",
   "PAID",
+  "CLOSED",
   "CANCELLED",
   "REJECTED",
 ];

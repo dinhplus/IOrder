@@ -24,6 +24,9 @@ export default function RootLayout({
               <Link href="/" className="hover:text-foreground transition-colors">
                 Home
               </Link>
+              <Link href="/tenants" className="hover:text-foreground transition-colors">
+                Tenants
+              </Link>
               <Link href="/menu" className="hover:text-foreground transition-colors">
                 Menu
               </Link>
@@ -35,6 +38,9 @@ export default function RootLayout({
               </Link>
               <Link href="/floor-plan" className="hover:text-foreground transition-colors">
                 Floor Plan
+              </Link>
+              <Link href="/staff" className="hover:text-foreground transition-colors">
+                Staff
               </Link>
             </nav>
           </div>

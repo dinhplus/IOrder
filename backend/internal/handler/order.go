@@ -243,3 +243,13 @@ func (h *OrderHandler) RequestPayment() gin.HandlerFunc {
 func (h *OrderHandler) CancelOrder() gin.HandlerFunc {
 	return h.transition("", repository.OrderStatusCancelled)
 }
+
+// PayOrder handles POST /api/v1/orders/:id/pay.
+func (h *OrderHandler) PayOrder() gin.HandlerFunc {
+	return h.transition(repository.OrderStatusPaymentRequested, repository.OrderStatusPaid)
+}
+
+// CloseOrder handles POST /api/v1/orders/:id/close.
+func (h *OrderHandler) CloseOrder() gin.HandlerFunc {
+	return h.transition(repository.OrderStatusPaid, repository.OrderStatusClosed)
+}

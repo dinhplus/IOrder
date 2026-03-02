@@ -158,3 +158,32 @@ func TestUpdateTenant_Success(t *testing.T) {
 		t.Fatalf("decode: %v", err)
 	}
 }
+
+func TestListTenants_Empty(t *testing.T) {
+	r := gin.New()
+	h := handler.NewTenantHandler(&mockTenantStore{})
+	r.GET("/api/v1/tenants", h.ListTenants())
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+}
+
+func TestListTenants_WithResults(t *testing.T) {
+	store := &mockTenantStore{tenant: &repository.Tenant{ID: "t1", Slug: "rest1", Name: "Restaurant 1"}}
+	r := gin.New()
+	h := handler.NewTenantHandler(store)
+	r.GET("/api/v1/tenants", h.ListTenants())
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/tenants", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+}
