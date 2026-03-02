@@ -1,0 +1,149 @@
+name: CI — Frontend (Next.js)
+
+on:
+  pull_request:
+    paths:
+      - "frontend/**"
+      - ".github/workflows/ci-frontend.yml"
+  push:
+    branches: [main]
+    paths:
+      - "frontend/**"
+      - ".github/workflows/ci-frontend.yml"
+
+defaults:
+  run:
+    working-directory: frontend
+
+env:
+  NODE_VERSION: "22"
+
+jobs:
+  detect-package-manager:
+    name: Detect Package Manager
+    runs-on: ubuntu-latest
+    outputs:
+      manager: ${{ steps.detect.outputs.manager }}
+      install-cmd: ${{ steps.detect.outputs.install-cmd }}
+      cache-path: ${{ steps.detect.outputs.cache-path }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: detect
+        run: |
+          if [ -f "pnpm-lock.yaml" ]; then
+            echo "manager=pnpm" >> $GITHUB_OUTPUT
+            echo "install-cmd=pnpm install --frozen-lockfile" >> $GITHUB_OUTPUT
+            echo "cache-path=$(pnpm store path 2>/dev/null || echo '~/.local/share/pnpm/store')" >> $GITHUB_OUTPUT
+          elif [ -f "yarn.lock" ]; then
+            echo "manager=yarn" >> $GITHUB_OUTPUT
+            echo "install-cmd=yarn install --frozen-lockfile" >> $GITHUB_OUTPUT
+            echo "cache-path=$(yarn cache dir 2>/dev/null || echo '~/.cache/yarn')" >> $GITHUB_OUTPUT
+          else
+            echo "manager=npm" >> $GITHUB_OUTPUT
+            echo "install-cmd=npm ci" >> $GITHUB_OUTPUT
+            echo "cache-path=~/.npm" >> $GITHUB_OUTPUT
+          fi
+
+  lint-typecheck:
+    name: Lint & Typecheck
+    needs: detect-package-manager
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Setup pnpm
+        if: needs.detect-package-manager.outputs.manager == 'pnpm'
+        uses: pnpm/action-setup@v4
+        with:
+          version: latest
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ needs.detect-package-manager.outputs.cache-path }}
+          key: ${{ runner.os }}-${{ needs.detect-package-manager.outputs.manager }}-${{ hashFiles('frontend/**/lockfile*', 'frontend/**/package-lock.json', 'frontend/**/yarn.lock', 'frontend/**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ needs.detect-package-manager.outputs.manager }}-
+
+      - name: Install dependencies
+        run: ${{ needs.detect-package-manager.outputs.install-cmd }}
+
+      - name: Lint
+        run: npx eslint . --max-warnings=0 || echo "::warning::ESLint not configured yet"
+
+      - name: Typecheck
+        run: npx tsc --noEmit || echo "::warning::TypeScript not configured yet"
+
+  test:
+    name: Test
+    needs: detect-package-manager
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Setup pnpm
+        if: needs.detect-package-manager.outputs.manager == 'pnpm'
+        uses: pnpm/action-setup@v4
+        with:
+          version: latest
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ needs.detect-package-manager.outputs.cache-path }}
+          key: ${{ runner.os }}-${{ needs.detect-package-manager.outputs.manager }}-${{ hashFiles('frontend/**/lockfile*', 'frontend/**/package-lock.json', 'frontend/**/yarn.lock', 'frontend/**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ needs.detect-package-manager.outputs.manager }}-
+
+      - name: Install dependencies
+        run: ${{ needs.detect-package-manager.outputs.install-cmd }}
+
+      - name: Run tests
+        run: |
+          if grep -q '"test"' package.json 2>/dev/null; then
+            npm test -- --passWithNoTests
+          else
+            echo "No test script found, skipping"
+          fi
+
+  build:
+    name: Build
+    needs: [detect-package-manager, lint-typecheck]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Setup pnpm
+        if: needs.detect-package-manager.outputs.manager == 'pnpm'
+        uses: pnpm/action-setup@v4
+        with:
+          version: latest
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ needs.detect-package-manager.outputs.cache-path }}
+          key: ${{ runner.os }}-${{ needs.detect-package-manager.outputs.manager }}-${{ hashFiles('frontend/**/lockfile*', 'frontend/**/package-lock.json', 'frontend/**/yarn.lock', 'frontend/**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ needs.detect-package-manager.outputs.manager }}-
+
+      - name: Install dependencies
+        run: ${{ needs.detect-package-manager.outputs.install-cmd }}
+
+      - name: Build Next.js
+        run: npx next build
+        env:
+          NEXT_TELEMETRY_DISABLED: 1

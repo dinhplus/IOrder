@@ -1,0 +1,59 @@
+name: "🔧 Chore / Maintenance"
+description: "Infrastructure, CI/CD, refactoring, or maintenance task"
+title: "[Chore]: "
+labels: ["type:chore", "prio:P2"]
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which area does this chore apply to?
+      options:
+        - Backend (Go/Gin)
+        - Frontend (Next.js)
+        - Mobile (React Native)
+        - Infrastructure / CI
+        - Documentation
+        - Cross-platform
+    validations:
+      required: true
+
+  - type: dropdown
+    id: size
+    attributes:
+      label: Estimated Size
+      description: Rough effort estimate
+      options:
+        - XS (< 2 hours)
+        - S (2-4 hours)
+        - M (4-8 hours)
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What needs to be done and why?
+      placeholder: "Update golangci-lint to v1.62 because..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: Done When
+      description: How do we know this is done?
+      placeholder: |
+        - [ ] CI passes with new config
+        - [ ] Docs updated
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: Any additional context.
+    validations:
+      required: false

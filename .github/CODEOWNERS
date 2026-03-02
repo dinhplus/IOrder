@@ -1,0 +1,31 @@
+# CODEOWNERS — IOrder Mono-repo
+# Defines who must review PRs touching specific areas.
+# GitHub uses this to auto-request reviews.
+#
+# Pattern: <file-pattern> <owners>
+# Owners can be @username, @org/team, or email.
+
+# Global — catch-all for repo-wide changes
+*                           @dinhplus
+
+# Backend (Go/Gin)
+/backend/                   @dinhplus
+/backend/migrations/        @dinhplus
+
+# Frontend (Next.js)
+/frontend/                  @dinhplus
+
+# Mobile (React Native)
+/mobile/                    @dinhplus
+
+# CI/CD & Infrastructure
+/.github/                   @dinhplus
+/.github/workflows/         @dinhplus
+/docker-compose*.yml        @dinhplus
+
+# Documentation
+/docs/                      @dinhplus
+/docs/architecture/adr/     @dinhplus
+
+# Lint configs
+/.golangci.yml              @dinhplus

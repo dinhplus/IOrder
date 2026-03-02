@@ -1,0 +1,93 @@
+# golangci-lint configuration — IOrder Backend
+# Pragmatic, stable, low false-positive setup for Go 1.23 + Gin
+
+run:
+  timeout: 5m
+  go: "1.23"
+
+linters:
+  enable:
+    # Default linters
+    - errcheck
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+
+    # Additional — pragmatic picks
+    - bodyclose         # HTTP response body not closed
+    - durationcheck     # time.Duration multiplication
+    - errorlint         # error wrapping issues
+    - exhaustive        # missing enum cases in switch
+    - gocritic          # opinionated but useful
+    - gofmt             # formatting
+    - goimports         # import sorting
+    - gosec             # security
+    - misspell          # common typos
+    - nilerr            # nil error return
+    - noctx             # HTTP requests without context
+    - prealloc          # slice preallocation hints
+    - revive            # replacement for golint
+    - unconvert         # unnecessary type conversions
+    - unparam           # unused function parameters
+    - wastedassign      # wasted assignments
+
+linters-settings:
+  errcheck:
+    check-type-assertions: true
+    check-blank: false
+
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - performance
+    disabled-checks:
+      - hugeParam        # too noisy for Gin handlers
+
+  gosec:
+    excludes:
+      - G104              # unhandled errors (errcheck covers this)
+
+  revive:
+    rules:
+      - name: blank-imports
+      - name: context-as-argument
+      - name: context-keys-type
+      - name: dot-imports
+      - name: error-return
+      - name: error-strings
+      - name: error-naming
+      - name: exported
+      - name: increment-decrement
+      - name: indent-error-flow
+      - name: range
+      - name: receiver-naming
+      - name: time-naming
+      - name: unexported-return
+      - name: var-declaration
+      - name: var-naming
+
+  exhaustive:
+    default-signifies-exhaustive: true
+
+  goimports:
+    local-prefixes: github.com/dinhplus/IOrder
+
+issues:
+  max-issues-per-linter: 50
+  max-same-issues: 5
+
+  exclude-rules:
+    # Test files: relax some rules
+    - path: _test\.go
+      linters:
+        - errcheck
+        - gosec
+        - gocritic
+        - unparam
+
+    # Generated files
+    - path: ".*_gen\\.go"
+      linters:
+        - all
