@@ -1,1 +1,10 @@
--- initial migration rollback
+DROP TABLE IF EXISTS order_events;
+DROP TABLE IF EXISTS order_items;
+DROP TABLE IF EXISTS orders;
+DROP TABLE IF EXISTS customers;
+DROP TABLE IF EXISTS menu_items;
+DROP TABLE IF EXISTS menu_categories;
+DROP TABLE IF EXISTS restaurant_tables;
+DROP TABLE IF EXISTS floor_plans;
+DROP TABLE IF EXISTS staff;
+DROP TABLE IF EXISTS tenants;
