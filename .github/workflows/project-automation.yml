@@ -1,0 +1,159 @@
+name: Project Automation
+
+on:
+  issues:
+    types: [labeled]
+  pull_request:
+    types: [opened, ready_for_review]
+
+permissions:
+  issues: write
+  pull-requests: write
+  contents: read
+
+jobs:
+  assign-to-agent:
+    name: Assign Issue to Agent
+    runs-on: ubuntu-latest
+    if: >
+      github.event_name == 'issues' &&
+      github.event.action == 'labeled' &&
+      github.event.label.name == 'status:ready'
+    steps:
+      - name: Post agent assignment comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = context.payload.issue;
+            const labels = issue.labels.map(l => l.name);
+
+            // Determine area and agent role from area:* labels
+            const areaMap = {
+              'area:backend':  { area: 'backend',  agentRole: 'Dev Backend',        commitScope: 'backend'  },
+              'area:frontend': { area: 'frontend', agentRole: 'Dev Frontend',       commitScope: 'frontend' },
+              'area:mobile':   { area: 'mobile',   agentRole: 'Dev Mobile',         commitScope: 'mobile'   },
+              'area:infra':    { area: 'infra',    agentRole: 'DevOps & Release',   commitScope: 'ci'       },
+            };
+
+            const areaEntry = Object.entries(areaMap).find(([label]) => labels.includes(label));
+            if (!areaEntry) {
+              core.info('No area:* label found — skipping agent assignment.');
+              return;
+            }
+            const { area, agentRole, commitScope } = areaEntry[1];
+
+            // Determine branch type from type:* labels
+            let branchType = 'feat';
+            if (labels.includes('type:bug'))   branchType = 'fix';
+            if (labels.includes('type:chore')) branchType = 'chore';
+
+            // Build suggested branch name
+            const issueNum = issue.number;
+            const slugTitle = issue.title
+              .toLowerCase()
+              .replace(/^\[.*?\]:\s*/, '')      // strip "[Feature]: " prefix
+              .replace(/[^a-z0-9\s-]/g, '')
+              .trim()
+              .replace(/\s+/g, '-')
+              .substring(0, 40)
+              .replace(/-+$/, '');
+            const branchName = `${branchType}/${issueNum}-${slugTitle}`;
+
+            // Conventional commit example
+            const commitType = branchType === 'feat' ? 'feat' : branchType;
+            const conventionalCommit = `${commitType}(${commitScope}): <description>`;
+
+            // Build absolute URLs for links in comments
+            const repoUrl = context.payload.repository.html_url;
+            const defaultBranch = context.payload.repository.default_branch || 'main';
+            const agentGuideFile = area === 'infra'
+              ? 'docs/process/agents/release-devops.md'
+              : `docs/process/agents/dev-${area}.md`;
+            const agentGuideUrl = `${repoUrl}/blob/${defaultBranch}/${agentGuideFile}`;
+            const prTemplateUrl = `${repoUrl}/blob/${defaultBranch}/.github/PULL_REQUEST_TEMPLATE.md`;
+
+            const body = [
+              '## 🤖 Agent Assignment',
+              '',
+              `**Assigned to:** ${agentRole} agent`,
+              `**Area:** \`${area}\``,
+              '',
+              '### Suggested Branch',
+              '```',
+              branchName,
+              '```',
+              '',
+              '### Conventional Commit Format',
+              '```',
+              conventionalCommit,
+              '```',
+              '',
+              '### Next Steps',
+              `1. Create the branch: \`git checkout -b ${branchName}\``,
+              '2. Read the Acceptance Criteria above carefully.',
+              `3. Follow the agent guide: [${agentGuideFile}](${agentGuideUrl})`,
+              `4. Implement, run quality checks, then open a PR using the [PR template](${prTemplateUrl}).`,
+              '5. The **Tech Lead** will review the PR before it can be merged.',
+              '',
+              '> _Status is now `status:ready`. Pick this up when your WIP slot is free (max 1 task in progress at a time per agent)._',
+            ].join('\n');
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNum,
+              body,
+            });
+
+  request-tech-lead-review:
+    name: Tech Lead Review Gate
+    runs-on: ubuntu-latest
+    if: >
+      github.event_name == 'pull_request' &&
+      (github.event.action == 'opened' || github.event.action == 'ready_for_review') &&
+      !github.event.pull_request.draft
+    steps:
+      - name: Post tech lead review checklist
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const branch = pr.head.ref;
+
+            // Infer area from branch name for context
+            let area = 'cross-platform';
+            const b = branch.toLowerCase();
+            if (b.includes('backend'))               area = 'backend';
+            else if (b.includes('frontend'))          area = 'frontend';
+            else if (b.includes('mobile'))            area = 'mobile';
+            else if (b.match(/ci|infra|devops|chore/)) area = 'infra';
+
+            const body = [
+              '## 🔍 Tech Lead Review Required',
+              '',
+              'This PR is **blocked until the Tech Lead approves** it.',
+              'CODEOWNERS has been automatically notified for a review request.',
+              '',
+              '### Review Checklist (Tech Lead)',
+              '- [ ] Code follows architecture standards (`docs/architecture/adr/`)',
+              '- [ ] API contract implemented per spec (if cross-platform)',
+              '- [ ] Cross-platform impact reviewed',
+              '- [ ] No new tech debt introduced without a tracking issue',
+              '- [ ] ADR updated if an architecture decision changed',
+              '- [ ] All CI checks are green',
+              '',
+              '### Definition of Done',
+              '- [ ] PR approved by Tech Lead (≥ 1 approval)',
+              '- [ ] All required status checks pass',
+              '- [ ] Branch is up-to-date with `main`',
+              '- [ ] PR description complete (template filled, issue linked)',
+              '',
+              `> _Area: \`${area}\` | Branch: \`${branch}\`_`,
+            ].join('\n');
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pr.number,
+              body,
+            });
