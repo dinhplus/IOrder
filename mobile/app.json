@@ -26,7 +26,8 @@
       "typedRoutes": true
     },
     "extra": {
-      "apiUrl": "http://localhost:8080"
+      "apiUrl": "http://localhost:8080",
+      "tenantId": ""
     }
   }
 }

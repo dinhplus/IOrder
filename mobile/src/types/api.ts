@@ -24,3 +24,7 @@ export class APIError extends Error {
     this.name = "APIError";
   }
 }
+
+export interface ApiResponse<T> {
+  data: T;
+}

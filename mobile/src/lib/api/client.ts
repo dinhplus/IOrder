@@ -10,6 +10,10 @@ function getApiUrl(): string {
   return Constants.expoConfig?.extra?.apiUrl ?? DEFAULT_API_URL;
 }
 
+export function tenantHeader(tenantID: string): HeadersInit {
+  return { "X-Tenant-ID": tenantID };
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const url = `${getApiUrl()}${path}`;
   const response = await fetch(url, {
