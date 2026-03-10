@@ -47,17 +47,17 @@ export function Dialog({ open, onOpenChange, children }: DialogProps): React.JSX
       onOpenChange(false);
     };
 
-    const handleEscape = (e: Event): void => {
+    const handleCancel = (e: Event): void => {
       e.preventDefault();
-      onOpenChange(false);
+      dialog.close();
     };
 
     dialog.addEventListener("close", handleClose);
-    dialog.addEventListener("cancel", handleEscape);
+    dialog.addEventListener("cancel", handleCancel);
 
     return () => {
       dialog.removeEventListener("close", handleClose);
-      dialog.removeEventListener("cancel", handleEscape);
+      dialog.removeEventListener("cancel", handleCancel);
     };
   }, [onOpenChange]);
 

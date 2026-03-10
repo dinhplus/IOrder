@@ -1,4 +1,4 @@
-interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {}
+type TextareaProps = React.TextareaHTMLAttributes<HTMLTextAreaElement>;
 
 export function Textarea({ className = "", ...props }: TextareaProps): React.JSX.Element {
   return (

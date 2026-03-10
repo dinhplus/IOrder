@@ -24,8 +24,6 @@ export interface CreateMenuItemRequest {
   description?: string;
   price: number;
   image_url?: string;
-  tags?: string[];
-  is_available?: boolean;
   sort_order?: number;
 }
 
@@ -35,7 +33,6 @@ export interface UpdateMenuItemRequest {
   description?: string;
   price?: number;
   image_url?: string;
-  tags?: string[];
   is_available?: boolean;
   sort_order?: number;
 }
