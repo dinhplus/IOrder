@@ -1,12 +1,9 @@
+import { MenuView } from "@/components/features/menu/menu-view";
 import { listCategories, listItems } from "@/lib/api/menu";
-import { formatCurrency } from "@/lib/format";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { MenuCategory, MenuItem } from "@/types/menu";
 
 const TENANT_ID = process.env.NEXT_PUBLIC_TENANT_ID ?? "";
 
-async function getData(): Promise<{ categories: MenuCategory[]; items: MenuItem[] }> {
+async function getData() {
   if (!TENANT_ID) return { categories: [], items: [] };
   try {
     const [categories, items] = await Promise.all([
@@ -19,9 +16,7 @@ async function getData(): Promise<{ categories: MenuCategory[]; items: MenuItem[
   }
 }
 
-export default async function MenuPage(): Promise<React.JSX.Element> {
-  const { categories, items } = await getData();
-
+export default async function MenuPage() {
   if (!TENANT_ID) {
     return (
       <div className="flex flex-col gap-4">
@@ -33,21 +28,20 @@ export default async function MenuPage(): Promise<React.JSX.Element> {
     );
   }
 
+  const { categories, items } = await getData();
+
   return (
     <div className="flex flex-col gap-8">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold">Menu</h2>
-        <span className="text-sm text-muted-foreground">{items.length} items · {categories.length} categories</span>
+        <span className="text-sm text-muted-foreground">
+          {items.length} items · {categories.length} categories
+        </span>
       </div>
-
-      {categories.length === 0 ? (
-        <p className="text-muted-foreground">No menu categories found.</p>
-      ) : (
-        categories.map((cat) => {
-          const catItems = items.filter((item) => item.category_id === cat.id);
-          return (
-            <section key={cat.id} className="flex flex-col gap-4">
-              <div className="flex items-center gap-3">
+      <MenuView initialCategories={categories} initialItems={items} tenantId={TENANT_ID} />
+    </div>
+  );
+}
                 <h3 className="text-lg font-semibold">{cat.name}</h3>
                 <Badge variant={cat.is_active ? "success" : "outline"}>{cat.is_active ? "Active" : "Inactive"}</Badge>
                 <span className="text-xs text-muted-foreground capitalize">{cat.type}</span>

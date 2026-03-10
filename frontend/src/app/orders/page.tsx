@@ -94,7 +94,7 @@ export default async function OrdersPage(): Promise<React.JSX.Element> {
                       {order.notes && (
                         <div className="flex justify-between">
                           <dt className="text-muted-foreground">Notes</dt>
-                          <dd className="text-xs max-w-[12rem] text-right truncate">{order.notes}</dd>
+                            <dd className="text-xs max-w-48 text-right truncate">{order.notes}</dd>
                         </div>
                       )}
                     </dl>
