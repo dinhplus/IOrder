@@ -522,9 +522,9 @@ export function MenuView({ initialCategories, initialItems, tenantId }: MenuView
       </Dialog>
 
       {/* Confirmation Dialog */}
-      <Dialog open={confirmDialog.open} onOpenChange={(open) => {
-        if (!open) setConfirmDialog((prev) => ({ ...prev, open: false }));
-      }}>
+      <Dialog open={confirmDialog.open} onOpenChange={(open) =>
+        setConfirmDialog((prev) => ({ ...prev, open }))
+      }>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{confirmDialog.title}</DialogTitle>
