@@ -66,9 +66,9 @@ export function TenantsView({ initialTenants }: TenantsViewProps) {
     try {
       if (editingTenant) {
         const updated: UpdateTenantRequest = {
-          slug: formData.slug || undefined,
-          name: formData.name || undefined,
-          logo_url: formData.logo_url || undefined,
+          slug: formData.slug,
+          name: formData.name,
+          logo_url: formData.logo_url,
           timezone: formData.timezone,
           currency: formData.currency,
           is_active: formData.is_active,
@@ -82,7 +82,6 @@ export function TenantsView({ initialTenants }: TenantsViewProps) {
           logo_url: formData.logo_url || undefined,
           timezone: formData.timezone,
           currency: formData.currency,
-          is_active: formData.is_active,
         };
         const result = await createTenant(newTenant);
         setTenants((prev) => [result, ...prev]);
@@ -218,18 +217,20 @@ export function TenantsView({ initialTenants }: TenantsViewProps) {
                 </Select>
               </div>
 
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="is_active"
-                  checked={formData.is_active}
-                  onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
-                  className="h-4 w-4 rounded border-border"
-                />
-                <Label htmlFor="is_active" className="cursor-pointer">
-                  Active
-                </Label>
-              </div>
+              {editingTenant && (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="is_active"
+                    checked={formData.is_active}
+                    onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
+                    className="h-4 w-4 rounded border-border"
+                  />
+                  <Label htmlFor="is_active" className="cursor-pointer">
+                    Active
+                  </Label>
+                </div>
+              )}
             </div>
 
             <DialogFooter>

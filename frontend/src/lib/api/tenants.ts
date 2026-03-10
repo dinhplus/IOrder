@@ -7,7 +7,6 @@ export interface CreateTenantRequest {
   logo_url?: string;
   timezone?: string;
   currency?: string;
-  is_active?: boolean;
 }
 
 export interface UpdateTenantRequest {

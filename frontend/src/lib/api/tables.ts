@@ -6,7 +6,6 @@ const TENANT_HEADER = (tenantID: string): HeadersInit => ({ "X-Tenant-ID": tenan
 export interface CreateFloorPlanRequest {
   name: string;
   floor_level?: number;
-  is_active?: boolean;
 }
 
 export interface UpdateFloorPlanRequest {
@@ -22,7 +21,6 @@ export interface CreateTableRequest {
   pos_x?: number;
   pos_y?: number;
   shape?: string;
-  status?: string;
 }
 
 export interface UpdateTableRequest {

@@ -7,8 +7,6 @@ export interface CreateStaffRequest {
   full_name: string;
   email?: string;
   role: string;
-  cognito_sub?: string;
-  is_active?: boolean;
 }
 
 export interface UpdateStaffRequest {

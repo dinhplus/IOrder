@@ -38,6 +38,12 @@ export function MenuView({ initialCategories, initialItems, tenantId }: MenuView
   const [dialogType, setDialogType] = useState<"category" | "item">("category");
   const [editingCategory, setEditingCategory] = useState<MenuCategory | null>(null);
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({ open: false, title: "", message: "", onConfirm: () => {} });
 
   const [categoryForm, setCategoryForm] = useState({
     name: "",
@@ -53,13 +59,13 @@ export function MenuView({ initialCategories, initialItems, tenantId }: MenuView
     description: "",
     price: 0,
     image_url: "",
-    tags: "",
     is_available: true,
     sort_order: 0,
   });
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [actionError, setActionError] = useState("");
 
   const handleCreateCategory = () => {
     setDialogType("category");
@@ -89,14 +95,32 @@ export function MenuView({ initialCategories, initialItems, tenantId }: MenuView
     setDialogOpen(true);
   };
 
-  const handleDeleteCategory = async (id: string) => {
-    if (!confirm("Delete this category? All items will remain but need reassignment.")) return;
-    try {
-      await deleteCategory(id, tenantId);
-      setCategories((prev) => prev.filter((c) => c.id !== id));
-    } catch (err: unknown) {
-      alert((err as Error)?.message || "Failed to delete category");
+  const handleDeleteCategory = (id: string) => {
+    const catItems = items.filter((item) => item.category_id === id);
+    if (catItems.length > 0) {
+      setConfirmDialog({
+        open: true,
+        title: "Cannot Delete Category",
+        message: `This category has ${catItems.length} item(s). Please move or delete them before removing the category.`,
+        onConfirm: () => setConfirmDialog((prev) => ({ ...prev, open: false })),
+      });
+      return;
     }
+    setConfirmDialog({
+      open: true,
+      title: "Delete Category",
+      message: "Are you sure you want to delete this category?",
+      onConfirm: async () => {
+        try {
+          await deleteCategory(id, tenantId);
+          setCategories((prev) => prev.filter((c) => c.id !== id));
+          setActionError("");
+        } catch (err: unknown) {
+          setActionError((err as Error)?.message || "Failed to delete category");
+        }
+        setConfirmDialog((prev) => ({ ...prev, open: false }));
+      },
+    });
   };
 
   const handleCreateItem = (cat?: MenuCategory) => {
@@ -108,7 +132,6 @@ export function MenuView({ initialCategories, initialItems, tenantId }: MenuView
       description: "",
       price: 0,
       image_url: "",
-      tags: "",
       is_available: true,
       sort_order: 0,
     });
@@ -125,7 +148,6 @@ export function MenuView({ initialCategories, initialItems, tenantId }: MenuView
       description: item.description ?? "",
       price: item.price,
       image_url: item.image_url ?? "",
-      tags: item.tags.join(", "),
       is_available: item.is_available,
       sort_order: item.sort_order,
     });
@@ -133,14 +155,22 @@ export function MenuView({ initialCategories, initialItems, tenantId }: MenuView
     setDialogOpen(true);
   };
 
-  const handleDeleteItem = async (id: string) => {
-    if (!confirm("Delete this menu item?")) return;
-    try {
-      await deleteMenuItem(id, tenantId);
-      setItems((prev) => prev.filter((i) => i.id !== id));
-    } catch (err: unknown) {
-      alert((err as Error)?.message || "Failed to delete item");
-    }
+  const handleDeleteItem = (id: string) => {
+    setConfirmDialog({
+      open: true,
+      title: "Delete Menu Item",
+      message: "Are you sure you want to delete this menu item?",
+      onConfirm: async () => {
+        try {
+          await deleteMenuItem(id, tenantId);
+          setItems((prev) => prev.filter((i) => i.id !== id));
+          setActionError("");
+        } catch (err: unknown) {
+          setActionError((err as Error)?.message || "Failed to delete item");
+        }
+        setConfirmDialog((prev) => ({ ...prev, open: false }));
+      },
+    });
   };
 
   const handleToggleAvailability = async (item: MenuItem) => {
@@ -149,12 +179,13 @@ export function MenuView({ initialCategories, initialItems, tenantId }: MenuView
       setItems((prev) =>
         prev.map((i) => (i.id === item.id ? { ...i, is_available: !i.is_available } : i))
       );
+      setActionError("");
     } catch (err: unknown) {
-      alert((err as Error)?.message || "Failed to toggle availability");
+      setActionError((err as Error)?.message || "Failed to toggle availability");
     }
   };
 
-  const handleSubmit= async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
     setError("");
@@ -163,9 +194,9 @@ export function MenuView({ initialCategories, initialItems, tenantId }: MenuView
       if (dialogType === "category") {
         if (editingCategory) {
           const updated: UpdateCategoryRequest = {
-            name: categoryForm.name || undefined,
-            type: categoryForm.type || undefined,
-            description: categoryForm.description || undefined,
+            name: categoryForm.name,
+            type: categoryForm.type,
+            description: categoryForm.description,
             sort_order: categoryForm.sort_order,
             is_active: categoryForm.is_active,
           };
@@ -182,19 +213,13 @@ export function MenuView({ initialCategories, initialItems, tenantId }: MenuView
           setCategories((prev) => [...prev, result]);
         }
       } else {
-        const tagsArray = itemForm.tags
-          .split(",")
-          .map((t) => t.trim())
-          .filter(Boolean);
-        
         if (editingItem) {
           const updated: UpdateMenuItemRequest = {
-            category_id: itemForm.category_id || undefined,
-            name: itemForm.name || undefined,
-            description: itemForm.description || undefined,
+            category_id: itemForm.category_id,
+            name: itemForm.name,
+            description: itemForm.description,
             price: itemForm.price,
-            image_url: itemForm.image_url || undefined,
-            tags: tagsArray,
+            image_url: itemForm.image_url,
             is_available: itemForm.is_available,
             sort_order: itemForm.sort_order,
           };
@@ -207,8 +232,6 @@ export function MenuView({ initialCategories, initialItems, tenantId }: MenuView
             description: itemForm.description || undefined,
             price: itemForm.price,
             image_url: itemForm.image_url || undefined,
-            tags: tagsArray,
-            is_available: itemForm.is_available,
             sort_order: itemForm.sort_order,
           };
           const result = await createMenuItem(tenantId, newItem);
@@ -225,12 +248,30 @@ export function MenuView({ initialCategories, initialItems, tenantId }: MenuView
 
   return (
     <>
-      <div className="flex justify-end gap-2">
-        <Button variant="outline" onClick={handleCreateCategory}>
-          Add Category
-        </Button>
-        <Button onClick={() => handleCreateItem()}>Add Menu Item</Button>
+      <div className="flex items-center justify-between">
+        <span className="text-sm text-muted-foreground">
+          {items.length} items · {categories.length} categories
+        </span>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={handleCreateCategory}>
+            Add Category
+          </Button>
+          <Button onClick={() => handleCreateItem()}>Add Menu Item</Button>
+        </div>
       </div>
+
+      {actionError && (
+        <div className="p-3 text-sm bg-danger/10 text-danger rounded-md flex items-center justify-between">
+          <span>{actionError}</span>
+          <button
+            type="button"
+            className="text-danger hover:text-danger/80 font-medium text-xs"
+            onClick={() => setActionError("")}
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {categories.length === 0 ? (
         <p className="text-muted-foreground">No categories. Create one to get started.</p>
@@ -316,6 +357,7 @@ export function MenuView({ initialCategories, initialItems, tenantId }: MenuView
         })
       )}
 
+      {/* Create/Edit Form Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
           <form onSubmit={handleSubmit}>
@@ -368,20 +410,22 @@ export function MenuView({ initialCategories, initialItems, tenantId }: MenuView
                       }
                     />
                   </div>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      id="cat-active"
-                      checked={categoryForm.is_active}
-                      onChange={(e) =>
-                        setCategoryForm({ ...categoryForm, is_active: e.target.checked })
-                      }
-                      className="h-4 w-4 rounded border-border"
-                    />
-                    <Label htmlFor="cat-active" className="cursor-pointer">
-                      Active
-                    </Label>
-                  </div>
+                  {editingCategory && (
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="cat-active"
+                        checked={categoryForm.is_active}
+                        onChange={(e) =>
+                          setCategoryForm({ ...categoryForm, is_active: e.target.checked })
+                        }
+                        className="h-4 w-4 rounded border-border"
+                      />
+                      <Label htmlFor="cat-active" className="cursor-pointer">
+                        Active
+                      </Label>
+                    </div>
+                  )}
                 </>
               ) : (
                 <>
@@ -440,29 +484,22 @@ export function MenuView({ initialCategories, initialItems, tenantId }: MenuView
                       onChange={(e) => setItemForm({ ...itemForm, image_url: e.target.value })}
                     />
                   </div>
-                  <div>
-                    <Label htmlFor="item-tags">Tags (comma-separated)</Label>
-                    <Input
-                      id="item-tags"
-                      value={itemForm.tags}
-                      onChange={(e) => setItemForm({ ...itemForm, tags: e.target.value })}
-                      placeholder="spicy, vegetarian, popular"
-                    />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      id="item-available"
-                      checked={itemForm.is_available}
-                      onChange={(e) =>
-                        setItemForm({ ...itemForm, is_available: e.target.checked })
-                      }
-                      className="h-4 w-4 rounded border-border"
-                    />
-                    <Label htmlFor="item-available" className="cursor-pointer">
-                      Available
-                    </Label>
-                  </div>
+                  {editingItem && (
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="item-available"
+                        checked={itemForm.is_available}
+                        onChange={(e) =>
+                          setItemForm({ ...itemForm, is_available: e.target.checked })
+                        }
+                        className="h-4 w-4 rounded border-border"
+                      />
+                      <Label htmlFor="item-available" className="cursor-pointer">
+                        Available
+                      </Label>
+                    </div>
+                  )}
                 </>
               )}
             </div>
@@ -481,6 +518,36 @@ export function MenuView({ initialCategories, initialItems, tenantId }: MenuView
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirmation Dialog */}
+      <Dialog open={confirmDialog.open} onOpenChange={(open) => {
+        if (!open) setConfirmDialog((prev) => ({ ...prev, open: false }));
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{confirmDialog.title}</DialogTitle>
+          </DialogHeader>
+          <div className="p-6">
+            <p className="text-sm text-muted-foreground">{confirmDialog.message}</p>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setConfirmDialog((prev) => ({ ...prev, open: false }))}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="danger"
+              onClick={confirmDialog.onConfirm}
+            >
+              Confirm
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </>
