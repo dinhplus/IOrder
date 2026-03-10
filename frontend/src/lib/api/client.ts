@@ -27,7 +27,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     );
   }
 
-  return response.json() as Promise<T>;
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
+  const json = await response.json();
+  return (json as { data: T }).data;
 }
 
 export const apiClient = {
